@@ -1,0 +1,6 @@
+[submodule "FluentModbus"]
+	path = FluentModbus
+	url = https://github.com/Brill-Power/FluentModbus.git
+[submodule "SunSpec.Models/models"]
+	path = SunSpec.Models/models
+	url = https://github.com/sunspec/models.git
