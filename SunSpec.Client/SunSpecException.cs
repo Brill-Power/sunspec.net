@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024 Brill Power.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 using System;
 
 namespace SunSpec.Client;
