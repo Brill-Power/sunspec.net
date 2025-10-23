@@ -14,7 +14,7 @@ public class Point : EntityBase
     public object? Value { get; set; }
     public int? Count { get; set; }
     [JsonPropertyName("sf")]
-    public object? ScaleFactor { get; set; }
+    public string? ScaleFactor { get; set; }
     public string? Units { get; set; }
     [JsonConverter(typeof(SunSpecIsReadOnlyConverter))]
     [JsonPropertyName("access")]
