@@ -207,6 +207,7 @@ public class ServerModelGenerator : IIncrementalGenerator
         private static int ProcessPoints(string className, IReadOnlyList<Point> points, TextWriter writer, TextWriter appendixWriter)
         {
             Dictionary<string, List<string>> appendicesByTypeName = new Dictionary<string, List<string>>();
+            HashSet<string> pointNames = new HashSet<string>();
             int offset = 0;
             ushort modelId;
             foreach (Point point in points)
@@ -225,6 +226,12 @@ public class ServerModelGenerator : IIncrementalGenerator
                     continue;
                 }
                 string pointName = InvalidCharacters.Replace(point.Label ?? point.Name, String.Empty);
+                if (pointNames.Contains(pointName))
+                {
+                    // think we can assume name is unique
+                    pointName = InvalidCharacters.Replace(point.Name, String.Empty);
+                }
+                pointNames.Add(pointName);
                 string clrType;
                 string? readMethod = null;
                 string? writeMethodFormat = null;
