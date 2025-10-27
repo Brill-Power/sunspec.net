@@ -457,6 +457,19 @@ public class ServerModelGenerator : IIncrementalGenerator
                     writer.WriteLine("\t/// <summary>");
                     writer.WriteLine($"\t/// {point.Description}");
                     writer.WriteLine("\t/// </summary>");
+                    if (!String.IsNullOrEmpty(point.Units) || point.Standards.Count > 0)
+                    {
+                        writer.WriteLine("\t/// <remarks>");
+                        if (!String.IsNullOrEmpty(point.Units))
+                        {
+                            writer.WriteLine($"\t/// Unit: {point.Units}");
+                        }
+                        if (point.Standards.Count > 0)
+                        {
+                            writer.WriteLine($"\t/// Standards: {String.Join(", ", point.Standards)}");
+                        }
+                        writer.WriteLine("\t/// </remarks>");
+                    }
                     writer.WriteLine($"\t[Description(\"{point.Description.Replace("\"", "\\\"")}\")]");
                 }
                 if (!String.IsNullOrEmpty(scaler))

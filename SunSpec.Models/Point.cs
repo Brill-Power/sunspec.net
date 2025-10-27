@@ -31,6 +31,7 @@ public class Point : EntityBase
     [JsonPropertyName("static")]
     public bool? IsStatic { get; set; }
     public List<Symbol> Symbols { get; set; } = new List<Symbol>();
+    public List<string> Standards { get; set; } = [];
 
     public abstract class SunSpecBooleanConverter : JsonConverter<bool>
     {
