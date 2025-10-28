@@ -303,7 +303,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                 if (point.Type == PointType.SunSsf)
                 {
                     hasScaleFactors = true;
-                    scaleFactors.Add((point, currentOffset * 2));
+                    scaleFactors.Add((point, currentOffset));
                     continue;
                 }
 
