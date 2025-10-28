@@ -44,7 +44,7 @@ public class SunSpecServer : IDisposable
 
     public void Build()
     {
-        if (_currentRegister != Preamble.Length)
+        if (_currentRegister != Preamble.Length / 2)
         {
             throw new InvalidOperationException($"Cannot call {nameof(Build)} unless {nameof(Initialise)} is called first.");
         }
