@@ -7,7 +7,7 @@ namespace SunSpec.Models.Generated.Server;
 
 public interface IServerModelBuilder
 {
-    int Build(Memory<byte> buffer);
+    bool Build(Memory<byte> buffer, out int length, out IServerModel model);
 }
 
 public interface IServerModelBuilder<T> : IServerModelBuilder

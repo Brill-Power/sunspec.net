@@ -21,15 +21,15 @@ public class Point : EntityBase
     [JsonPropertyName("sf")]
     public string? ScaleFactor { get; set; }
     public string? Units { get; set; }
-    [JsonConverter(typeof(SunSpecIsReadOnlyConverter))]
+    [JsonConverter(typeof(SunSpecIsReadWriteConverter))]
     [JsonPropertyName("access")]
-    public bool? IsReadOnly { get; set; }
+    public bool IsReadWrite { get; set; }
     [JsonConverter(typeof(SunSpecMandatoryConverter))]
     [JsonPropertyName("mandatory")]
-    public bool? IsMandatory { get; set; }
+    public bool IsMandatory { get; set; }
     [JsonConverter(typeof(SunSpecIsStaticConverter))]
     [JsonPropertyName("static")]
-    public bool? IsStatic { get; set; }
+    public bool IsStatic { get; set; }
     public List<Symbol> Symbols { get; set; } = new List<Symbol>();
     public List<string> Standards { get; set; } = [];
 
@@ -55,10 +55,10 @@ public class Point : EntityBase
         protected override string FalseValue => "D";
     }
 
-    public class SunSpecIsReadOnlyConverter : SunSpecBooleanConverter
+    public class SunSpecIsReadWriteConverter : SunSpecBooleanConverter
     {
-        protected override string TrueValue => "R";
-        protected override string FalseValue => "RW";
+        protected override string TrueValue => "RW";
+        protected override string FalseValue => "R";
     }
 
     public class SunSpecMandatoryConverter : SunSpecBooleanConverter

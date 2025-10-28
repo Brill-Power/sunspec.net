@@ -9,6 +9,8 @@ public interface IServerModel
 {
     ushort ID { get; }
     ushort Length { get; }
+
+    void NotifyValueChanged(int relativeRegisterId);
 }
 
 public interface IServerModel<T> : IServerModel

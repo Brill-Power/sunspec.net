@@ -74,11 +74,19 @@ public class ServerModelGenerator : IIncrementalGenerator
                     writer.WriteLine("using System;");
                     writer.WriteLine("using System.Collections.Generic;");
                     writer.WriteLine("using System.ComponentModel;");
+                    writer.WriteLine("using System.ComponentModel.DataAnnotations;");
                     writer.WriteLine("using System.Text;");
                     writer.WriteLine("using System.Buffers.Binary;");
                     writer.WriteLine();
                     writer.WriteLine("namespace SunSpec.Models.Generated.Server;");
                     writer.WriteLine();
+                    if (!String.IsNullOrEmpty(model.Group.Description ?? model.Group.Label))
+                    {
+                        writer.WriteLine("/// <summary>");
+                        writer.WriteLine($"/// {model.Group.Description ?? model.Group.Label}");
+                        writer.WriteLine("/// </summary>");
+                        writer.WriteLine($"[Description(\"{model.Group.Description ?? model.Group.Label}\")]");
+                    }
                     writer.WriteLine($"public class {className} : IServerModel<{className}>");
                     writer.WriteLine("{");
                     writer.WriteLine("\tprivate readonly Memory<byte> _buffer;");
@@ -100,6 +108,13 @@ public class ServerModelGenerator : IIncrementalGenerator
                             groupName = className + groupName;
                         }
                         groupNames.Add(groupName);
+                        if (!String.IsNullOrEmpty(group.Description ?? group.Label))
+                        {
+                            appendixWriter.WriteLine("/// <summary>");
+                            appendixWriter.WriteLine($"/// {group.Description ?? group.Label}");
+                            appendixWriter.WriteLine("/// </summary>");
+                            appendixWriter.WriteLine($"[Description(\"{group.Description ?? group.Label}\")]");
+                        }
                         appendixWriter.WriteLine($"public class {groupName}"); // begin class
                         appendixWriter.WriteLine("{");
                         appendixWriter.WriteLine("\tprivate readonly Memory<byte> _buffer;");
@@ -230,7 +245,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                         builderWriter.WriteLine("\t}");
                         builderWriter.WriteLine();
                     }
-                    builderWriter.WriteLine("\tpublic int Build(Memory<byte> buffer)");
+                    builderWriter.WriteLine("\tpublic bool Build(Memory<byte> buffer, out int length, out IServerModel model)");
                     builderWriter.WriteLine("\t{");
                     builderWriter.WriteLine($"\t\t_model = {className}.Create(buffer);");
                     for (int i = 0; i < groupNames.Count; i++)
@@ -240,7 +255,9 @@ public class ServerModelGenerator : IIncrementalGenerator
                         builderWriter.WriteLine($"\t\t\tModel.Add{groupNames[i]}();");
                         builderWriter.WriteLine("\t\t}");
                     }
-                    builderWriter.WriteLine("\t\treturn Model.Length;");
+                    builderWriter.WriteLine("\t\tlength = Model.Length;");
+                    builderWriter.WriteLine("\t\tmodel = Model;");
+                    builderWriter.WriteLine("\t\treturn true;");
                     builderWriter.WriteLine("\t}");
                     builderWriter.WriteLine("}");
 
@@ -252,15 +269,16 @@ public class ServerModelGenerator : IIncrementalGenerator
             }
             catch (Exception ex)
             {
-                throw new ArgumentException($"Unable to transform {path}: {ex.Message}.", ex);
+                throw new ArgumentException($"Unable to transform {path}: {ex.Message}", ex);
             }
         }
 
         private static int ProcessPoints(string className, IReadOnlyList<Point> points, TextWriter writer, TextWriter appendixWriter, out bool hasScaleFactors)
         {
             hasScaleFactors = false;
+            Dictionary<int, string> writeablePointNamesByOffset = [];
             Dictionary<string, List<string>> appendicesByTypeName = new Dictionary<string, List<string>>();
-            HashSet<string> pointNames = new HashSet<string>();
+            HashSet<string> pointNames = new HashSet<string>(); // used to check for unique names (because we usually derive from label)
             List<(Point, int)> scaleFactors = new List<(Point, int)>();
             int offset = 0;
             ushort modelId;
@@ -268,8 +286,9 @@ public class ServerModelGenerator : IIncrementalGenerator
             {
                 int currentOffset = offset;
                 offset += point.Size;
+
                 // special case for ID and length
-                if (point.Name == "ID")
+                if (point.Name == "ID" && point.Value is not null && point.IsStatic)
                 {
                     modelId = ((JsonElement)point.Value!).GetUInt16();
                     writer.WriteLine($"\tpublic UInt16 ID => {modelId};");
@@ -288,6 +307,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                     continue;
                 }
 
+                // concoct a name
                 string pointName = InvalidCharacters.Replace(point.Label ?? point.Name, String.Empty);
                 if (pointNames.Contains(pointName))
                 {
@@ -295,6 +315,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                     pointName = InvalidCharacters.Replace(point.Name, String.Empty);
                 }
                 pointNames.Add(pointName);
+
                 string clrType;
                 string? readMethod = null;
                 string? writeMethodFormat = null;
@@ -323,105 +344,39 @@ public class ServerModelGenerator : IIncrementalGenerator
                     case PointType.Bitfield64:
                         // need to make an enum
                         clrType = $"{className}{pointName}";
-                        string bitFieldBaseType;
-                        switch (point.Type)
+                        if (!TryCreateEnum(point, pt => pt switch
                         {
-                            case PointType.Bitfield16:
-                                bitFieldBaseType = "UInt16";
-                                break;
-                            case PointType.Bitfield32:
-                                bitFieldBaseType = "UInt32";
-                                break;
-                            case PointType.Bitfield64:
-                                bitFieldBaseType = "UInt64";
-                                break;
-                            default:
-                                continue;
-                        }
-                        readMethod = $"BinaryPrimitives.Read{bitFieldBaseType}BigEndian";
-                        writeMethodFormat = $"BinaryPrimitives.Write{bitFieldBaseType}BigEndian({{0}}, ({bitFieldBaseType})value)";
-                        if (point.Symbols.Count > 0)
+                            PointType.Bitfield16 => "UInt16",
+                            PointType.Bitfield32 => "UInt32",
+                            PointType.Bitfield64 => "UInt64",
+                            _ => null
+                        }, "1 << {0}", appendicesByTypeName, ref clrType, out readMethod, out writeMethodFormat))
                         {
-                            readMethod = $"({clrType}){readMethod}"; // cast to type
-                            List<string> appendices =
-                            [
-                                $"public enum {clrType} : {bitFieldBaseType}",
-                                "{",
-                            ];
-                            foreach (Symbol symbol in point.Symbols)
-                            {
-                                appendices.Add($"\t{ConvertName(symbol.Name, false)} = ({bitFieldBaseType})1 << {symbol.Value},");
-                            }
-                            appendices.Add("}");
-                            appendices.Add(String.Empty);
-                            if (!appendicesByTypeName.TryAdd(clrType, appendices))
-                            {
-                                if (!appendices.SequenceEqual(appendicesByTypeName[clrType]))
-                                {
-                                    throw new ArgumentException($"Enum {clrType} redefined with different values.");
-                                }
-                            }
-                        }
-                        else
-                        {
-                            clrType = bitFieldBaseType;
+                            continue;
                         }
                         break;
                     case PointType.Enum16:
                     case PointType.Enum32:
                         clrType = $"{className}{pointName}";
-                        string enumBaseType;
-                        switch (point.Type)
+                        if (!TryCreateEnum(point, pt => pt switch
                         {
-                            case PointType.Enum16:
-                                enumBaseType = "UInt16";
-                                readMethod = "BinaryPrimitives.ReadUInt16BigEndian";
-                                writeMethodFormat = $"BinaryPrimitives.WriteUInt16BigEndian({{0}}, ({enumBaseType})value)";
-                                break;
-                            case PointType.Enum32:
-                                enumBaseType = "UInt32";
-                                readMethod = "BinaryPrimitives.ReadUInt32BigEndian";
-                                writeMethodFormat = $"BinaryPrimitives.WriteUInt32BigEndian({{0}}, ({enumBaseType})value)";
-                                break;
-                            default:
-                                continue;
-                        }
-                        if (point.Symbols.Count > 0)
+                            PointType.Enum16 => "UInt16",
+                            PointType.Enum32 => "UInt32",
+                            _ => null
+                        }, "{0}", appendicesByTypeName, ref clrType, out readMethod, out writeMethodFormat))
                         {
-                            readMethod = $"({clrType}){readMethod}"; // cast to type
-                            List<string> appendices =
-                            [
-                                $"public enum {clrType} : {enumBaseType}",
-                                "{"
-                            ];
-                            foreach (Symbol symbol in point.Symbols)
-                            {
-                                appendices.Add($"\t{ConvertName(symbol.Name, false)} = {symbol.Value},");
-                            }
-                            appendices.Add("}");
-                            appendices.Add(String.Empty);
-                            if (!appendicesByTypeName.TryAdd(clrType, appendices))
-                            {
-                                if (!appendices.SequenceEqual(appendicesByTypeName[clrType]))
-                                {
-                                    throw new ArgumentException($"Enum {clrType} redefined with different values.");
-                                }
-                            }
-                        }
-                        else
-                        {
-                            clrType = enumBaseType;
+                            continue;
                         }
                         break;
                     case PointType.Float32:
                         clrType = "float";
                         readMethod = "BinaryPrimitives.ReadSingleBigEndian";
-                        writeMethodFormat = "BinaryPrimitives.WriteSingleBigEndian({0}, ({clrType}){descaledValue})";
+                        writeMethodFormat = $"BinaryPrimitives.WriteSingleBigEndian({0}, ({clrType}){descaledValue})";
                         break;
                     case PointType.Float64:
                         clrType = "double";
                         readMethod = "BinaryPrimitives.ReadDoubleBigEndian";
-                        writeMethodFormat = "BinaryPrimitives.WriteDoubleBigEndian({0}, ({clrType}){descaledValue})";
+                        writeMethodFormat = $"BinaryPrimitives.WriteDoubleBigEndian({0}, ({clrType}){descaledValue})";
                         break;
                     case PointType.Acc16:
                     case PointType.Count:
@@ -470,7 +425,23 @@ public class ServerModelGenerator : IIncrementalGenerator
                         }
                         writer.WriteLine("\t/// </remarks>");
                     }
+                    if (!String.IsNullOrEmpty(point.Label))
+                    {
+                        writer.WriteLine($"\t[DisplayName(\"{point.Label}\")]");
+                    }
                     writer.WriteLine($"\t[Description(\"{point.Description.Replace("\"", "\\\"")}\")]");
+                }
+                if (point.IsMandatory)
+                {
+                    writer.WriteLine("\t[Required]");
+                }
+                if (!point.IsReadWrite)
+                {
+                    writer.WriteLine("\t[ReadOnly(true)]");
+                }
+                if (point.Type == PointType.String)
+                {
+                    writer.WriteLine($"\t[MaxLength({point.Size * 2})]");
                 }
                 if (!String.IsNullOrEmpty(scaler))
                 {
@@ -482,11 +453,40 @@ public class ServerModelGenerator : IIncrementalGenerator
                 writer.WriteLine($"\t\tget {{ return {readMethod}(_buffer.Span.Slice({currentOffset * 2})){scaler}; }}");
                 writer.WriteLine($"\t\tset {{ {String.Format(writeMethodFormat, $"_buffer.Span.Slice({currentOffset * 2})")}; }}");
                 writer.WriteLine("\t}");
+                if (point.IsReadWrite)
+                {
+                    // create Changed event for editable values
+                    writer.WriteLine();
+                    writer.WriteLine("#nullable enable");
+                    writer.WriteLine($"\tpublic event EventHandler? {pointName}Changed;");
+                    writer.WriteLine("#nullable disable");
+
+                    writeablePointNamesByOffset.Add(currentOffset, pointName);
+                }
             }
+
+            writer.WriteLine();
+            writer.WriteLine("\tpublic void NotifyValueChanged(int relativeRegisterId)");
+            writer.WriteLine("\t{");
+            if (writeablePointNamesByOffset.Count > 0)
+            {
+                writer.WriteLine("\t\tswitch (relativeRegisterId)");
+                writer.WriteLine("\t\t{");
+                foreach (int o in writeablePointNamesByOffset.Keys)
+                {
+                    string name = writeablePointNamesByOffset[o];
+                    writer.WriteLine($"\t\t\tcase {o}:");
+                    writer.WriteLine($"\t\t\t\t{name}Changed?.Invoke(this, EventArgs.Empty);");
+                    writer.WriteLine("\t\t\t\tbreak;");
+                }
+                writer.WriteLine("\t\t}");
+            }
+            writer.WriteLine("\t}");
 
             // type to hold scale factors
             if (scaleFactors.Count > 0)
             {
+                appendixWriter.WriteLine();
                 appendixWriter.WriteLine($"public class {className}ScaleFactors");
                 appendixWriter.WriteLine("{");
                 appendixWriter.WriteLine("\tprivate readonly Memory<byte> _buffer;");
@@ -507,7 +507,6 @@ public class ServerModelGenerator : IIncrementalGenerator
                     appendixWriter.WriteLine();
                 }
                 appendixWriter.WriteLine("}");
-                appendixWriter.WriteLine();
             }
 
             // any other types
@@ -517,6 +516,50 @@ public class ServerModelGenerator : IIncrementalGenerator
             }
 
             return offset;
+        }
+
+        private static bool TryCreateEnum(Point point, Func<PointType, string?> baseTypeSelector, string valueFormat,
+            Dictionary<string, List<string>> appendicesByTypeName,
+            ref string clrType, out string readMethod, out string writeMethodFormat)
+        {
+            string? baseType = baseTypeSelector(point.Type);
+            if (baseType is null)
+            {
+                readMethod = String.Empty;
+                writeMethodFormat = String.Empty;
+                return false;
+            }
+
+            readMethod = $"BinaryPrimitives.Read{baseType}BigEndian";
+            writeMethodFormat = $"BinaryPrimitives.Write{baseType}BigEndian({{0}}, ({baseType})value)";
+            if (point.Symbols.Count > 0)
+            {
+                readMethod = $"({clrType}){readMethod}"; // cast to type
+                List<string> appendices =
+                [
+                    $"public enum {clrType} : {baseType}",
+                    "{",
+                ];
+                foreach (Symbol symbol in point.Symbols)
+                {
+                    appendices.Add($"\t{ConvertName(symbol.Name, false)} = {String.Format(valueFormat, symbol.Value)},");
+                }
+                appendices.Add("}");
+                appendices.Add(String.Empty);
+                if (!appendicesByTypeName.TryAdd(clrType, appendices))
+                {
+                    if (!appendices.SequenceEqual(appendicesByTypeName[clrType]))
+                    {
+                        throw new ArgumentException($"Enum {clrType} redefined with different values.");
+                    }
+                }
+            }
+            else
+            {
+                clrType = baseType;
+            }
+
+            return true;
         }
 
         private static string ToFieldName(string name)
