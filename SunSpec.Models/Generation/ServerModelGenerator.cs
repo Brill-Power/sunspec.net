@@ -63,7 +63,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                         result = default;
                         return false;
                     }
-                    string className = ConvertName(model.Group.Name);
+                    string className = ConvertName(model.Group.Name, true);
                     if (className.EndsWith("Model"))
                     {
                         className = className.Substring(0, className.Length - 5);
@@ -94,7 +94,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                     List<string> groupNames = new List<string>();
                     foreach (Group group in model.Group.Groups)
                     {
-                        string groupName = ConvertName(group.Name);
+                        string groupName = ConvertName(group.Name, true);
                         if (!groupName.StartsWith(className))
                         {
                             groupName = className + groupName;
@@ -105,7 +105,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                         appendixWriter.WriteLine("\tprivate readonly Memory<byte> _buffer;");
                         if (hasScaleFactors)
                         {
-                            appendixWriter.WriteLine($"\tprivate readonly {className}ScaleFactors _scaleFactors;");
+                            appendixWriter.WriteLine($"\tprivate readonly {className}ScaleFactors ScaleFactors;");
                         }
                         appendixWriter.WriteLine();
                         appendixWriter.Write($"\tprivate {groupName}(Memory<byte> buffer");
@@ -120,7 +120,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                         appendixWriter.WriteLine("\t\t_buffer = buffer;");
                         if (hasScaleFactors)
                         {
-                            appendixWriter.WriteLine("\t\t_scaleFactors = scaleFactors;");
+                            appendixWriter.WriteLine("\t\tScaleFactors = scaleFactors;");
                         }
                         appendixWriter.WriteLine("\t}");
                         appendixWriter.WriteLine();
@@ -173,7 +173,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                         writer.Write($"\t\t{groupName} item = {groupName}.Create(_buffer.Slice(Length)");
                         if (hasScaleFactors)
                         {
-                            writer.Write(", _scaleFactors");
+                            writer.Write(", ScaleFactors");
                         }
                         writer.WriteLine(");");
                         writer.WriteLine($"\t\tLength += item.Length;");
@@ -185,7 +185,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                     // constructor, etc.
                     if (hasScaleFactors)
                     {
-                        writer.WriteLine($"\tprivate readonly {className}ScaleFactors _scaleFactors;");
+                        writer.WriteLine($"\tpublic {className}ScaleFactors ScaleFactors {{ get; }}");
                         writer.WriteLine();
                     }
                     writer.WriteLine($"\tprivate {className}(Memory<byte> buffer)");
@@ -193,7 +193,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                     writer.WriteLine("\t\t_buffer = buffer;");
                     if (hasScaleFactors)
                     {
-                        writer.WriteLine($"\t\t_scaleFactors = new {className}ScaleFactors(buffer);");
+                        writer.WriteLine($"\t\tScaleFactors = new {className}ScaleFactors(buffer);");
                     }
                     writer.WriteLine("\t\tBinaryPrimitives.WriteUInt16BigEndian(_buffer.Span, ID);");
                     writer.WriteLine($"\t\tLength = {offset};");
@@ -302,7 +302,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                 string descaledValue = "value";
                 if (!String.IsNullOrEmpty(point.ScaleFactor))
                 {
-                    string scale = $"_scaleFactors.{point.ScaleFactor.Replace("_SF", String.Empty)}";
+                    string scale = $"ScaleFactors.{point.ScaleFactor.Replace("_SF", String.Empty)}";
                     scaler = $" * {scale}";
                     descaledValue = $"(value / {scale})";
                 }
@@ -350,7 +350,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                             ];
                             foreach (Symbol symbol in point.Symbols)
                             {
-                                appendices.Add($"\t{ConvertName(symbol.Name)} = ({bitFieldBaseType})1 << {symbol.Value},");
+                                appendices.Add($"\t{ConvertName(symbol.Name, false)} = ({bitFieldBaseType})1 << {symbol.Value},");
                             }
                             appendices.Add("}");
                             appendices.Add(String.Empty);
@@ -396,7 +396,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                             ];
                             foreach (Symbol symbol in point.Symbols)
                             {
-                                appendices.Add($"\t{ConvertName(symbol.Name)} = {symbol.Value},");
+                                appendices.Add($"\t{ConvertName(symbol.Name, false)} = {symbol.Value},");
                             }
                             appendices.Add("}");
                             appendices.Add(String.Empty);
@@ -490,14 +490,21 @@ public class ServerModelGenerator : IIncrementalGenerator
                 appendixWriter.WriteLine($"public class {className}ScaleFactors");
                 appendixWriter.WriteLine("{");
                 appendixWriter.WriteLine("\tprivate readonly Memory<byte> _buffer;");
+                appendixWriter.WriteLine();
                 appendixWriter.WriteLine($"\tinternal {className}ScaleFactors(Memory<byte> buffer)");
                 appendixWriter.WriteLine("\t{");
                 appendixWriter.WriteLine("\t\t_buffer = buffer;");
                 appendixWriter.WriteLine("\t}");
+                appendixWriter.WriteLine();
                 foreach ((Point point, int currentOffset) in scaleFactors)
                 {
                     string name = point.Name.Replace("_SF", String.Empty);
-                    appendixWriter.WriteLine($"\tpublic double {name} => Math.Pow(10, BinaryPrimitives.ReadInt16BigEndian(_buffer.Span.Slice({currentOffset * 2})));");
+                    appendixWriter.WriteLine($"\tpublic double {name}");
+                    appendixWriter.WriteLine("\t{");
+                    appendixWriter.WriteLine($"\t\tget {{ return Math.Pow(10, BinaryPrimitives.ReadInt16BigEndian(_buffer.Span.Slice({currentOffset * 2}))); }}");
+                    appendixWriter.WriteLine($"\t\tset {{ BinaryPrimitives.WriteInt16BigEndian(_buffer.Span.Slice({currentOffset * 2}), (short)Math.Log10(value)); }}");
+                    appendixWriter.WriteLine("\t}");
+                    appendixWriter.WriteLine();
                 }
                 appendixWriter.WriteLine("}");
                 appendixWriter.WriteLine();
@@ -519,7 +526,7 @@ public class ServerModelGenerator : IIncrementalGenerator
             return new string(result);
         }
 
-        private static string ConvertName(string name)
+        private static string ConvertName(string name, bool typeName)
         {
             ReadOnlySpan<char> input = name;
             Span<char> output = new char[input.Length];
@@ -530,7 +537,7 @@ public class ServerModelGenerator : IIncrementalGenerator
                 char c = input[i];
                 if (Char.IsAsciiLetterOrDigit(c))
                 {
-                    output[o++] = upper ? Char.ToUpper(c) : Char.ToLower(c);
+                    output[o++] = upper ? Char.ToUpper(c) : typeName ? c : Char.ToLower(c);
                     upper = false;
                 }
                 else
