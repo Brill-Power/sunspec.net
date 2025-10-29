@@ -47,7 +47,10 @@ public class SunSpecServer : IDisposable
 
     public SunSpecServer RegisterModelBuilder(IServerModelBuilder builder)
     {
-        _builders.Add(builder);
+        lock (_builders)
+        {
+            _builders.Add(builder);
+        }
         return this;
     }
 
@@ -58,13 +61,16 @@ public class SunSpecServer : IDisposable
             throw new InvalidOperationException($"Cannot call {nameof(Build)} unless {nameof(Initialise)} is called first.");
         }
         Memory<byte> holdingRegisters = _server.GetHoldingRegisterMemory();
-        foreach (IServerModelBuilder builder in _builders)
+        lock (_builders)
         {
-            if (builder.Build(holdingRegisters.Slice(_currentRegister * 2), out int length, out IServerModel model))
+            foreach (IServerModelBuilder builder in _builders)
             {
-                _modelsByStartingRegister.Add(_currentRegister, model);
-                _logger?.LogInformation($"Registered model {model.GetType().Name} (ID {model.ID}) at register {_currentRegister}.");
-                _currentRegister += length;
+                if (builder.Build(holdingRegisters.Slice(_currentRegister * 2), out int length, out IServerModel model))
+                {
+                    _modelsByStartingRegister.Add(_currentRegister, model);
+                    _logger?.LogInformation($"Registered model {model.GetType().Name} (ID {model.ID}) at register {_currentRegister}.");
+                    _currentRegister += length;
+                }
             }
         }
         UpdateFooter();
@@ -72,8 +78,11 @@ public class SunSpecServer : IDisposable
 
     public void Initialise()
     {
-        _builders.Clear();
-        _modelsByStartingRegister.Clear();
+        lock (_builders)
+        {
+            _builders.Clear();
+            _modelsByStartingRegister.Clear();
+        }
         Span<byte> holdingRegisters = _server.GetHoldingRegisterBuffer();
         Preamble.CopyTo(holdingRegisters);
         _currentRegister = Preamble.Length / 2;
