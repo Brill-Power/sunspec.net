@@ -31,7 +31,7 @@ public class SunSpecServer : IDisposable
     {
     }
 
-    public SunSpecServer(ILogger? logger)
+    public SunSpecServer(ILogger<SunSpecServer>? logger)
     {
         _logger = logger;
 
