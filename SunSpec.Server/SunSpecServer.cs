@@ -27,7 +27,11 @@ public class SunSpecServer : IDisposable
     private readonly SortedDictionary<int, IServerModel> _modelsByStartingRegister = [];
     private int _currentRegister;
 
-    public SunSpecServer(ILogger? logger = null)
+    public SunSpecServer() : this(null)
+    {
+    }
+
+    public SunSpecServer(ILogger? logger)
     {
         _logger = logger;
 
