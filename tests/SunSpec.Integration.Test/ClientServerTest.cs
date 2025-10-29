@@ -1,7 +1,13 @@
+/*
+ * Copyright (c) 2024-2025 Brill Power.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 using FluentModbus;
 using SunSpec.Client;
 using SunSpec.Server;
-using SunSpec.Models.Generated.Server;
+using SunSpec.Models.Generated;
+using System.Linq;
 
 namespace SunSpec.Integration.Test;
 
@@ -23,9 +29,21 @@ public class ClientServerTest
         server.CommonModel.Manufacturer = "Brill Power";
         server.Start();
 
+        bankBuilder.Model.ScaleFactors.V = 0.01;
+        bankBuilder.Model.ScaleFactors.CellV = 0.001;
+        bankBuilder.Model.AverageStringVoltage = 24.0;
+        bankBuilder.Model.LithiumIonBankStrings[0].AverageCellVoltage = 3.25;
+
         ModbusTcpClient tcpClient = new ModbusTcpClient();
         tcpClient.Connect(ModbusEndianness.BigEndian);
         SunSpecClient client = new SunSpecClient(tcpClient);
         await client.ScanAsync();
+        Assert.Equal(4, client.Models.Count);
+        LithiumIonBank? lithiumIonBank = client.Models.OfType<LithiumIonBank>().FirstOrDefault();
+        Assert.NotNull(lithiumIonBank);
+        Assert.Equal(24.0, lithiumIonBank.AverageStringVoltage);
+        Assert.Equal(1, lithiumIonBank.StringCount);
+        LithiumIonBankString bankString = lithiumIonBank.LithiumIonBankStrings[0];
+        Assert.Equal(3.25, bankString.AverageCellVoltage);
     }
 }

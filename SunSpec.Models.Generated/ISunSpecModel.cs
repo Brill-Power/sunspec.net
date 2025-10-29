@@ -3,9 +3,9 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-namespace SunSpec.Models.Generated.Server;
+namespace SunSpec.Models.Generated;
 
-public interface IServerModel
+public interface ISunSpecModel
 {
     ushort ID { get; }
     ushort Length { get; }
@@ -13,8 +13,8 @@ public interface IServerModel
     void NotifyValueChanged(int relativeRegisterId);
 }
 
-public interface IServerModel<T> : IServerModel
-    where T : IServerModel<T>
+public interface ISunSpecModel<T> : ISunSpecModel
+    where T : ISunSpecModel<T>
 {
     static abstract T Create(Memory<byte> buffer);
 }

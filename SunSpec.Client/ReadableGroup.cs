@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 using System;
+using System.Buffers.Binary;
+using System.Text;
 using System.Threading.Tasks;
 using FluentModbus;
 using SunSpec.Models;
@@ -55,10 +57,10 @@ public class ReadableGroup
     private static object? GetPointValue(PointType pointType, ReadOnlySpan<byte> slice)
         => pointType switch
         {
-            PointType.UInt16 or PointType.Enum16 => ModbusBinaryConversion.ReadUShort(slice),
-            PointType.SunSsf or PointType.Int16 => ModbusBinaryConversion.ReadShort(slice),
-            PointType.Acc32 or PointType.Bitfield32 or PointType.UInt32 => ModbusBinaryConversion.ReadUInt(slice),
-            PointType.String => ModbusBinaryConversion.ReadString(slice),
+            PointType.UInt16 or PointType.Enum16 => BinaryPrimitives.ReadUInt16BigEndian(slice),
+            PointType.SunSsf or PointType.Int16 => BinaryPrimitives.ReadInt16BigEndian(slice),
+            PointType.Acc32 or PointType.Bitfield32 or PointType.UInt32 => BinaryPrimitives.ReadUInt32BigEndian(slice),
+            PointType.String => Encoding.UTF8.GetString(slice[0..^1]),
             _ => null,
         };
 }

@@ -10,7 +10,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using FluentModbus;
-using SunSpec.Models.Generated.Server;
+using SunSpec.Models.Generated;
 using Microsoft.Extensions.Logging;
 
 namespace SunSpec.Server;
@@ -22,9 +22,9 @@ public class SunSpecServer : IDisposable
     private readonly ILogger? _logger;
 
     private readonly ModbusTcpServer _server;
-    private readonly List<IServerModelBuilder> _builders = [];
+    private readonly List<ISunSpecModelBuilder> _builders = [];
     private readonly CommonBuilder _commonModelBuilder = new CommonBuilder();
-    private readonly SortedDictionary<int, IServerModel> _modelsByStartingRegister = [];
+    private readonly SortedDictionary<int, ISunSpecModel> _modelsByStartingRegister = [];
     private int _currentRegister;
 
     public SunSpecServer() : this(null)
@@ -45,7 +45,7 @@ public class SunSpecServer : IDisposable
 
     public Common? CommonModel => _commonModelBuilder.Model;
 
-    public SunSpecServer RegisterModelBuilder(IServerModelBuilder builder)
+    public SunSpecServer RegisterModelBuilder(ISunSpecModelBuilder builder)
     {
         lock (_builders)
         {
@@ -63,9 +63,9 @@ public class SunSpecServer : IDisposable
         Memory<byte> holdingRegisters = _server.GetHoldingRegisterMemory();
         lock (_builders)
         {
-            foreach (IServerModelBuilder builder in _builders)
+            foreach (ISunSpecModelBuilder builder in _builders)
             {
-                if (builder.Build(holdingRegisters.Slice(_currentRegister * 2), out int length, out IServerModel model))
+                if (builder.Build(holdingRegisters.Slice(_currentRegister * 2), out int length, out ISunSpecModel model))
                 {
                     _modelsByStartingRegister.Add(_currentRegister, model);
                     _logger?.LogInformation($"Registered model {model.GetType().Name} (ID {model.ID}) at register {_currentRegister}.");
@@ -125,7 +125,7 @@ public class SunSpecServer : IDisposable
             {
                 if (startingRegister < register)
                 {
-                    IServerModel model = _modelsByStartingRegister[startingRegister];
+                    ISunSpecModel model = _modelsByStartingRegister[startingRegister];
                     int localRegister = register - startingRegister - 1;
                     _logger?.LogInformation($"Notifying model {model.GetType().Name} (ID {model.ID}) of change of register {localRegister}");
                     model.NotifyValueChanged(localRegister);

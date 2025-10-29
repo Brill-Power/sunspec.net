@@ -9,6 +9,7 @@
     <ItemGroup>
         <ProjectReference Include="..\FluentModbus\src\FluentModbus\FluentModbus.csproj" />
         <ProjectReference Include="..\SunSpec.Models\SunSpec.Models.csproj" />
+        <ProjectReference Include="..\SunSpec.Models.Generated\SunSpec.Models.Generated.csproj" />
     </ItemGroup>
 
 </Project>
