@@ -11,6 +11,7 @@ using System.Net;
 using System.Text;
 using FluentModbus;
 using SunSpec.Models.Generated.Server;
+using Microsoft.Extensions.Logging;
 
 namespace SunSpec.Server;
 
@@ -18,14 +19,18 @@ public class SunSpecServer : IDisposable
 {
     private static readonly byte[] Preamble = Encoding.UTF8.GetBytes("SunS");
 
+    private readonly ILogger? _logger;
+
     private readonly ModbusTcpServer _server;
     private readonly List<IServerModelBuilder> _builders = [];
     private readonly CommonBuilder _commonModelBuilder = new CommonBuilder();
     private readonly SortedDictionary<int, IServerModel> _modelsByStartingRegister = [];
     private int _currentRegister;
 
-    public SunSpecServer()
+    public SunSpecServer(ILogger? logger = null)
     {
+        _logger = logger;
+
         _server = new ModbusTcpServer();
         _server.EnableRaisingEvents = true;
         _server.RegistersChanged += OnRegistersChanged;
@@ -54,6 +59,7 @@ public class SunSpecServer : IDisposable
             if (builder.Build(holdingRegisters.Slice(_currentRegister * 2), out int length, out IServerModel model))
             {
                 _modelsByStartingRegister.Add(_currentRegister, model);
+                _logger?.LogInformation($"Registered model {model.GetType().Name} (ID {model.ID}) at register {_currentRegister}.");
                 _currentRegister += length;
             }
         }
@@ -79,11 +85,13 @@ public class SunSpecServer : IDisposable
     public void Start(IPEndPoint endpoint)
     {
         _server.Start(endpoint);
+        _logger?.LogInformation($"Started SunSpec server on {endpoint}");
     }
 
     public void Stop()
     {
         _server.Stop();
+        _logger?.LogInformation("Stopping SunSpec server");
     }
 
     public void Dispose()
@@ -105,7 +113,9 @@ public class SunSpecServer : IDisposable
                 if (startingRegister < register)
                 {
                     IServerModel model = _modelsByStartingRegister[startingRegister];
-                    model.NotifyValueChanged(register - startingRegister);
+                    int localRegister = register - startingRegister;
+                    _logger?.LogInformation($"Notifying model {model.GetType().Name} (ID {model.ID}) of change of register {localRegister}");
+                    model.NotifyValueChanged(localRegister);
                 }
             }
         }
