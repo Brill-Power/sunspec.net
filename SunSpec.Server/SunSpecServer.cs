@@ -117,9 +117,10 @@ public class SunSpecServer : IDisposable
                 if (startingRegister < register)
                 {
                     IServerModel model = _modelsByStartingRegister[startingRegister];
-                    int localRegister = register - startingRegister;
+                    int localRegister = register - startingRegister - 1;
                     _logger?.LogInformation($"Notifying model {model.GetType().Name} (ID {model.ID}) of change of register {localRegister}");
                     model.NotifyValueChanged(localRegister);
+                    break;
                 }
             }
         }
