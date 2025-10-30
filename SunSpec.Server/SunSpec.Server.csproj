@@ -12,4 +12,8 @@
         <ProjectReference Include="..\SunSpec.Models.Generated\SunSpec.Models.Generated.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.10" />
+    </ItemGroup>
+
 </Project>

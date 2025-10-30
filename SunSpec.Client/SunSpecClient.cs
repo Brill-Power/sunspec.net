@@ -4,11 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using FluentModbus;
+using SunSpec.Client.Extensions;
 using SunSpec.Models;
+using SunSpec.Models.Generated;
 
 namespace SunSpec.Client;
 
@@ -22,12 +25,14 @@ public class SunSpecClient : IDisposable
     private const ushort ModelIdAndLength = 2;
 
     private readonly ModbusClient _client;
-    private readonly Dictionary<uint, ReadableGroup> _models;
+    private readonly byte _unitId;
+    private readonly Dictionary<uint, ReadableGroup> _schemata = [];
+    private readonly List<ISunSpecModel> _models = [];
 
-    public SunSpecClient(ModbusClient client)
+    public SunSpecClient(ModbusClient client, byte unitId = DefaultUnitIdentifier)
     {
         _client = client;
-        _models = [];
+        _unitId = unitId;
     }
 
     public void Dispose()
@@ -40,16 +45,18 @@ public class SunSpecClient : IDisposable
 
     public async Task ScanAsync()
     {
-        Memory<byte> data = await _client.ReadHoldingRegistersAsync(DefaultUnitIdentifier, 0, 4); // SunS + modelId + modelLength
+        _schemata.Clear();
+        _models.Clear();
 
-        EnsureStartsWithSunSpecPreamble(data.Span);
-        ushort commonModelLength = ProcessCommonModel(data.Span);
+        Memory<byte> buffer = await _client.ReadHoldingRegistersAsync(_unitId, 0, 4); // SunS + modelId + modelLength
 
-        ushort readFrom = (ushort)(CommonModelStartAddress + commonModelLength);
-        Memory<byte> buffer = await _client.ReadHoldingRegistersAsync(DefaultUnitIdentifier, readFrom, ModelIdAndLength);
+        EnsureStartsWithSunSpecPreamble(buffer.Span);
+        EnsureCommonModel(buffer.Span);
 
-        while (!IsSunSpecEndModelId(buffer.Span))
+        ushort readFrom = CommonModelStartAddress;
+        do
         {
+            buffer = await _client.ReadHoldingRegistersAsync(_unitId, readFrom, ModelIdAndLength);
             (ushort modelId, ushort modelLength) = GetModelIdAndLength(buffer.Span);
 
             if (modelId == 0)
@@ -58,18 +65,24 @@ public class SunSpecClient : IDisposable
             }
             else
             {
-                Model model = Model.GetModel(modelId);
-                _models.Add(modelId, new ReadableGroup(model.Group, _client, readFrom, modelLength));
+                Model schema = Model.GetModel(modelId);
+                _schemata.Add(modelId, new ReadableGroup(schema.Group, _client, readFrom, modelLength));
+                buffer = await _client.ReadManyHoldingRegistersAsync<byte>(_unitId, readFrom, modelLength * 2);
+                ISunSpecModel model = SunSpecAnyModelBuilder.Create(modelId, buffer);
+                _models.Add(model);
                 readFrom += modelLength;
             }
 
-            buffer = await _client.ReadHoldingRegistersAsync(DefaultUnitIdentifier, readFrom, ModelIdAndLength);
+            buffer = await _client.ReadHoldingRegistersAsync(_unitId, readFrom, ModelIdAndLength);
         }
+        while (!IsSunSpecEndModelId(buffer.Span));
     }
 
-    public ReadableGroup? Common { get; private set; }
+    public ReadableGroup? Common => _schemata.TryGetValue(1, out ReadableGroup? group) ? group : null;
 
-    public IReadOnlyDictionary<uint, ReadableGroup> Models { get => _models; }
+    public IReadOnlyList<ISunSpecModel> Models => _models;
+
+    public IReadOnlyDictionary<uint, ReadableGroup> Schemata => _schemata;
 
     private static void EnsureStartsWithSunSpecPreamble(ReadOnlySpan<byte> data)
     {
@@ -83,25 +96,17 @@ public class SunSpecClient : IDisposable
 
     private static (ushort, ushort) GetModelIdAndLength(ReadOnlySpan<byte> bytes)
     {
-        ushort modelId = ModbusBinaryConversion.ReadUShort(bytes[..2]);
-        ushort modelLength = ModbusBinaryConversion.ReadUShort(bytes[2..4]);
+        ushort modelId = BinaryPrimitives.ReadUInt16BigEndian(bytes[..2]);
+        ushort modelLength = BinaryPrimitives.ReadUInt16BigEndian(bytes[2..4]);
         return (modelId, modelLength);
     }
 
-    private ushort ProcessCommonModel(ReadOnlySpan<byte> data)
+    private static void EnsureCommonModel(ReadOnlySpan<byte> data)
     {
-        Model commonModel = Model.GetModel(CommonModelId);
-
-        ushort modelId = ModbusBinaryConversion.ReadUShort(data.Slice(CommonModelStartByte, 2));
-
+        ushort modelId = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(CommonModelStartByte, 2));
         if (modelId != CommonModelId)
         {
             throw new SunSpecException("Device does not start with the SunSpec common model.");
         }
-
-        ushort commonModelLength = ModbusBinaryConversion.ReadUShort(data.Slice(CommonModelStartByte + 2, 2));
-
-        Common = new ReadableGroup(commonModel.Group, _client, CommonModelStartAddress, commonModelLength);
-        return commonModelLength;
     }
 }

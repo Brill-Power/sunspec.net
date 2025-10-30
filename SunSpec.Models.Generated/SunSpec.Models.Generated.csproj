@@ -17,6 +17,7 @@
         <AdditionalFiles Include="..\SunSpec.Models\models\json\model_1.json" />
         <AdditionalFiles Include="..\SunSpec.Models\models\json\model_10*.json" />
         <AdditionalFiles Include="..\SunSpec.Models\models\json\model_70*.json" />
+        <AdditionalFiles Include="..\SunSpec.Models\models\json\model_714.json" />
         <AdditionalFiles Include="..\SunSpec.Models\models\json\model_80*.json" />
     </ItemGroup>
 

@@ -15,6 +15,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis" Version="4.10.0" />
   </ItemGroup>
 
+  <!-- this is causing a warning, but without it, the models don't get embedded; but do we need them? -->
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
   <UsingTask TaskName="GZip" TaskFactory="RoslynCodeTaskFactory"
     AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">

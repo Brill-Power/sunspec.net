@@ -14,6 +14,7 @@ public class Group : EntityBase
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public required GroupType Type { get; set; }
     public required List<Point> Points { get; set; } = new List<Point>();
+    [JsonConverter(typeof(SunSpecReferenceOrCountConverter))]
     public object? Count { get; set; }
     public List<Group> Groups { get; set; } = new List<Group>();
 }

@@ -6,10 +6,12 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Text;
 using FluentModbus;
-using SunSpec.Models.Generated.Server;
+using SunSpec.Models.Generated;
+using Microsoft.Extensions.Logging;
 
 namespace SunSpec.Server;
 
@@ -17,14 +19,25 @@ public class SunSpecServer : IDisposable
 {
     private static readonly byte[] Preamble = Encoding.UTF8.GetBytes("SunS");
 
-    private readonly ModbusTcpServer _server;
-    private readonly List<IServerModelBuilder> _builders = new List<IServerModelBuilder>();
-    private readonly CommonBuilder _commonModelBuilder = new CommonBuilder();
-    private int _cursor;
+    private readonly ILogger? _logger;
 
-    public SunSpecServer()
+    private readonly ModbusTcpServer _server;
+    private readonly List<ISunSpecModelBuilder> _builders = [];
+    private readonly CommonBuilder _commonModelBuilder = new CommonBuilder();
+    private readonly SortedDictionary<int, ISunSpecModel> _modelsByStartingRegister = [];
+    private int _currentRegister;
+
+    public SunSpecServer() : this(null)
     {
+    }
+
+    public SunSpecServer(ILogger<SunSpecServer>? logger)
+    {
+        _logger = logger;
+
         _server = new ModbusTcpServer();
+        _server.EnableRaisingEvents = true;
+        _server.RegistersChanged += OnRegistersChanged;
 
         Initialise();
         Build();
@@ -32,39 +45,49 @@ public class SunSpecServer : IDisposable
 
     public Common? CommonModel => _commonModelBuilder.Model;
 
-    public SunSpecServer RegisterModelBuilder(IServerModelBuilder builder)
+    public SunSpecServer RegisterModelBuilder(ISunSpecModelBuilder builder)
     {
-        _builders.Add(builder);
+        lock (_builders)
+        {
+            _builders.Add(builder);
+        }
         return this;
     }
 
     public void Build()
     {
-        if (_cursor != Preamble.Length)
+        if (_currentRegister != Preamble.Length / 2)
         {
             throw new InvalidOperationException($"Cannot call {nameof(Build)} unless {nameof(Initialise)} is called first.");
         }
         Memory<byte> holdingRegisters = _server.GetHoldingRegisterMemory();
-        foreach (IServerModelBuilder builder in _builders)
+        lock (_builders)
         {
-            _cursor += builder.Build(holdingRegisters.Slice(_cursor)) * 2;
+            foreach (ISunSpecModelBuilder builder in _builders)
+            {
+                if (builder.Build(holdingRegisters.Slice(_currentRegister * 2), out int length, out ISunSpecModel model))
+                {
+                    _modelsByStartingRegister.Add(_currentRegister, model);
+                    _logger?.LogInformation($"Registered model {model.GetType().Name} (ID {model.ID}) at register {_currentRegister}.");
+                    _currentRegister += length;
+                }
+            }
         }
         UpdateFooter();
     }
 
     public void Initialise()
     {
-        _builders.Clear();
+        lock (_builders)
+        {
+            _builders.Clear();
+            _modelsByStartingRegister.Clear();
+        }
         Span<byte> holdingRegisters = _server.GetHoldingRegisterBuffer();
         Preamble.CopyTo(holdingRegisters);
-        _cursor = Preamble.Length;
+        _currentRegister = Preamble.Length / 2;
         RegisterModelBuilder(_commonModelBuilder);
         UpdateFooter();
-    }
-
-    private void UpdateFooter()
-    {
-        BinaryPrimitives.WriteUInt16BigEndian(_server.GetHoldingRegisterBuffer().Slice(_cursor), 0xFFFF);
     }
 
     public void Start()
@@ -75,15 +98,40 @@ public class SunSpecServer : IDisposable
     public void Start(IPEndPoint endpoint)
     {
         _server.Start(endpoint);
+        _logger?.LogInformation($"Started SunSpec server on {endpoint}");
     }
 
     public void Stop()
     {
         _server.Stop();
+        _logger?.LogInformation("Stopping SunSpec server");
     }
 
     public void Dispose()
     {
         _server.Dispose();
+    }
+
+    private void UpdateFooter()
+    {
+        BinaryPrimitives.WriteUInt16BigEndian(_server.GetHoldingRegisterBuffer().Slice(_currentRegister * 2), 0xFFFF);
+    }
+
+    private void OnRegistersChanged(object? sender, RegistersChangedEventArgs e)
+    {
+        foreach (int register in e.Registers)
+        {
+            foreach (int startingRegister in _modelsByStartingRegister.Keys.Reverse())
+            {
+                if (startingRegister < register)
+                {
+                    ISunSpecModel model = _modelsByStartingRegister[startingRegister];
+                    int localRegister = register - startingRegister - 1;
+                    _logger?.LogInformation($"Notifying model {model.GetType().Name} (ID {model.ID}) of change of register {localRegister}");
+                    model.NotifyValueChanged(localRegister);
+                    break;
+                }
+            }
+        }
     }
 }
