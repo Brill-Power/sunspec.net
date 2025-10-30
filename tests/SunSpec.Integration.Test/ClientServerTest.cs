@@ -8,6 +8,7 @@ using SunSpec.Client;
 using SunSpec.Server;
 using SunSpec.Models.Generated;
 using System.Linq;
+using System.Net;
 
 namespace SunSpec.Integration.Test;
 
@@ -27,7 +28,7 @@ public class ClientServerTest
         stringBuilder.AddLithiumIonStringModule();
         server.Build();
         server.CommonModel.Manufacturer = "Brill Power";
-        server.Start();
+        server.Start(new IPEndPoint(IPAddress.Loopback, 502));
 
         bankBuilder.Model.ScaleFactors.V = 0.01;
         bankBuilder.Model.ScaleFactors.CellV = 0.001;
