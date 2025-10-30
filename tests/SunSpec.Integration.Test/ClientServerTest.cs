@@ -28,7 +28,7 @@ public class ClientServerTest
         stringBuilder.AddLithiumIonStringModule();
         server.Build();
         server.CommonModel.Manufacturer = "Brill Power";
-        server.Start(new IPEndPoint(IPAddress.Loopback, 502));
+        server.Start(new IPEndPoint(IPAddress.Loopback, 1502));
 
         bankBuilder.Model.ScaleFactors.V = 0.01;
         bankBuilder.Model.ScaleFactors.CellV = 0.001;
@@ -36,7 +36,7 @@ public class ClientServerTest
         bankBuilder.Model.LithiumIonBankStrings[0].AverageCellVoltage = 3.25;
 
         ModbusTcpClient tcpClient = new ModbusTcpClient();
-        tcpClient.Connect(ModbusEndianness.BigEndian);
+        tcpClient.Connect(new IPEndPoint(IPAddress.Loopback, 1502), ModbusEndianness.BigEndian);
         SunSpecClient client = new SunSpecClient(tcpClient);
         await client.ScanAsync();
         Assert.Equal(4, client.Models.Count);
