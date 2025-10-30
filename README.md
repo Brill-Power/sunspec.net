@@ -66,7 +66,7 @@ Create a `ModbusClient` (TCP or serial) and connect it as appropriate.
 
 ```csharp
 ModbusTcpClient tcpClient = new ModbusTcpClient();
-tcpClient.Connect(new IPEndPoint(IPAddress.Loopback, 1502), ModbusEndianness.BigEndian);
+tcpClient.Connect(new IPEndPoint(IPAddress.Loopback, 502), ModbusEndianness.BigEndian);
 ```
 
 Create a `SunSpecClient` and pass the constructed `ModbusClient` to it, then call `ScanAsync`.
