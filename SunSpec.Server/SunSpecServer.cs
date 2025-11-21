@@ -68,7 +68,7 @@ public class SunSpecServer : IDisposable
                 if (builder.Build(holdingRegisters.Slice(_currentRegister * 2), out int length, out ISunSpecModel model))
                 {
                     _modelsByStartingRegister.Add(_currentRegister, model);
-                    _logger?.LogInformation($"Registered model {model.GetType().Name} (ID {model.ID}) at register {_currentRegister}.");
+                    _logger?.LogInformation($"Registered model {model.GetType().Name} (ID {model.ID}) of length {model.Length} at register {_currentRegister}.");
                     _currentRegister += length;
                 }
             }
