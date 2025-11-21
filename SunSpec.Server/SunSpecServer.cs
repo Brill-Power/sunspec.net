@@ -84,6 +84,7 @@ public class SunSpecServer : IDisposable
             _modelsByStartingRegister.Clear();
         }
         Span<byte> holdingRegisters = _server.GetHoldingRegisterBuffer();
+        holdingRegisters.Fill(0);
         Preamble.CopyTo(holdingRegisters);
         _currentRegister = Preamble.Length / 2;
         RegisterModelBuilder(_commonModelBuilder);
