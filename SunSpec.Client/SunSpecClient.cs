@@ -17,7 +17,7 @@ namespace SunSpec.Client;
 
 public class SunSpecClient : IDisposable
 {
-    internal const byte DefaultUnitIdentifier = 0x00;
+    internal const byte DefaultUnitIdentifier = 0x01;
 
     private const int CommonModelId = 1;
     private const ushort CommonModelStartAddress = 2;

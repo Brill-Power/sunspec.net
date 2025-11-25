@@ -17,7 +17,12 @@ namespace SunSpec.Server;
 
 public class SunSpecServer : IDisposable
 {
+    private const byte ZeroUnitIdentifier = 0x00;
+    private const byte DefaultUnitIdentifier = 0x01;
+
     private static readonly byte[] Preamble = Encoding.UTF8.GetBytes("SunS");
+
+    private readonly byte _unitId;
 
     private readonly ILogger? _logger;
 
@@ -27,17 +32,22 @@ public class SunSpecServer : IDisposable
     private readonly SortedDictionary<int, ISunSpecModel> _modelsByStartingRegister = [];
     private int _currentRegister;
 
-    public SunSpecServer() : this(null)
+    public SunSpecServer(byte unitId = DefaultUnitIdentifier) : this(null, unitId)
     {
     }
 
-    public SunSpecServer(ILogger<SunSpecServer>? logger)
+    public SunSpecServer(ILogger<SunSpecServer>? logger, byte unitId = DefaultUnitIdentifier)
     {
+        _unitId = unitId;
         _logger = logger;
 
         _server = new ModbusTcpServer();
         _server.EnableRaisingEvents = true;
         _server.RegistersChanged += OnRegistersChanged;
+        if (unitId != ZeroUnitIdentifier)
+        {
+            _server.AddUnit(unitId);
+        }
 
         Initialise();
         Build();
@@ -60,7 +70,7 @@ public class SunSpecServer : IDisposable
         {
             throw new InvalidOperationException($"Cannot call {nameof(Build)} unless {nameof(Initialise)} is called first.");
         }
-        Memory<byte> holdingRegisters = _server.GetHoldingRegisterMemory();
+        Memory<byte> holdingRegisters = _server.GetHoldingRegisterMemory(_unitId);
         lock (_builders)
         {
             foreach (ISunSpecModelBuilder builder in _builders)
@@ -83,7 +93,7 @@ public class SunSpecServer : IDisposable
             _builders.Clear();
             _modelsByStartingRegister.Clear();
         }
-        Span<byte> holdingRegisters = _server.GetHoldingRegisterBuffer();
+        Span<byte> holdingRegisters = _server.GetHoldingRegisterBuffer(_unitId);
         holdingRegisters.Fill(0);
         Preamble.CopyTo(holdingRegisters);
         _currentRegister = Preamble.Length / 2;
@@ -115,7 +125,7 @@ public class SunSpecServer : IDisposable
 
     private void UpdateFooter()
     {
-        BinaryPrimitives.WriteUInt16BigEndian(_server.GetHoldingRegisterBuffer().Slice(_currentRegister * 2), 0xFFFF);
+        BinaryPrimitives.WriteUInt16BigEndian(_server.GetHoldingRegisterBuffer(_unitId).Slice(_currentRegister * 2), 0xFFFF);
     }
 
     private void OnRegistersChanged(object? sender, RegistersChangedEventArgs e)
