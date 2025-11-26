@@ -65,6 +65,7 @@ public class SunSpecClient : IDisposable
             }
             else
             {
+                modelLength += 2;
                 Model schema = Model.GetModel(modelId);
                 _schemata.Add(modelId, new ReadableGroup(schema.Group, _client, readFrom, modelLength));
                 buffer = await _client.ReadManyHoldingRegistersAsync<byte>(_unitId, readFrom, modelLength * 2);

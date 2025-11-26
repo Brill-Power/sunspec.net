@@ -27,8 +27,12 @@ public class ClientServerTest
         server.RegisterModelBuilder(stringBuilder);
         stringBuilder.AddLithiumIonStringModule();
         server.Build();
-        server.CommonModel.Manufacturer = "Brill Power";
+        server.CommonModel!.Manufacturer = "Brill Power";
         server.Start(new IPEndPoint(IPAddress.Loopback, 1502));
+
+        // test some non-mandatory values
+        Assert.Null(bankBuilder.Model.MinStringCurrent);
+        Assert.Null(bankBuilder.Model.MaxStringCurrent);
 
         bankBuilder.Model.ScaleFactors.V = 0.01;
         bankBuilder.Model.ScaleFactors.CellV = 0.001;
@@ -42,6 +46,8 @@ public class ClientServerTest
         Assert.Equal(4, client.Models.Count);
         LithiumIonBank? lithiumIonBank = client.Models.OfType<LithiumIonBank>().FirstOrDefault();
         Assert.NotNull(lithiumIonBank);
+        Assert.Null(lithiumIonBank.MinStringCurrent);
+        Assert.Null(lithiumIonBank.MaxStringCurrent);
         Assert.Equal(24.0, lithiumIonBank.AverageStringVoltage);
         Assert.Equal(1, lithiumIonBank.StringCount);
         LithiumIonBankString bankString = lithiumIonBank.LithiumIonBankStrings[0];

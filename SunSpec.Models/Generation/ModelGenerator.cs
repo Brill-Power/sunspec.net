@@ -307,11 +307,13 @@ public class ModelGenerator : IIncrementalGenerator
                     builderWriter.WriteLine("\tpublic bool Build(Memory<byte> buffer, out int length, out ISunSpecModel model)");
                     builderWriter.WriteLine("\t{");
                     builderWriter.WriteLine($"\t\t_model = {className}.Create(buffer);");
+                    builderWriter.WriteLine("\t\t_model.Initialise();");
                     for (int i = 0; i < groupNames.Count; i++)
                     {
                         builderWriter.WriteLine($"\t\tfor (int i = 0; i < _{fieldNames[i]}Count; i++)");
                         builderWriter.WriteLine("\t\t{");
-                        builderWriter.WriteLine($"\t\t\tModel.Add{groupNames[i]}();");
+                        builderWriter.WriteLine($"\t\t\t{groupNames[i]} child = Model.Add{groupNames[i]}();");
+                        builderWriter.WriteLine("\t\t\tchild.Initialise();");
                         builderWriter.WriteLine("\t\t}");
                     }
                     builderWriter.WriteLine("\t\tlength = Model.Length;");
@@ -336,6 +338,7 @@ public class ModelGenerator : IIncrementalGenerator
         {
             hasScaleFactors = false;
             Dictionary<int, string> writeablePointNamesByOffset = [];
+            List<string> nullableProperties = [];
             Dictionary<string, List<string>> appendicesByTypeName = new Dictionary<string, List<string>>();
             pointNames = new Dictionary<string, string>(); // used to check for unique names (because we usually derive from label)
             List<(Point, int)> scaleFactors = new List<(Point, int)>();
@@ -514,6 +517,7 @@ public class ModelGenerator : IIncrementalGenerator
                 if (isNullable)
                 {
                     clrType += "?";
+                    nullableProperties.Add(pointName);
                 }
                 writer.WriteLine($"\tpublic {clrType} {pointName}");
                 writer.WriteLine("\t{");
@@ -547,6 +551,15 @@ public class ModelGenerator : IIncrementalGenerator
                     writer.WriteLine("\t\t\t\tbreak;");
                 }
                 writer.WriteLine("\t\t}");
+            }
+            writer.WriteLine("\t}");
+
+            writer.WriteLine();
+            writer.WriteLine("\tinternal void Initialise()");
+            writer.WriteLine("\t{");
+            foreach (string pointName in nullableProperties)
+            {
+                writer.WriteLine($"\t\t{pointName} = null;");
             }
             writer.WriteLine("\t}");
 
