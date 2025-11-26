@@ -268,8 +268,8 @@ public class ModelGenerator : IIncrementalGenerator
                         if (countReferences.TryGetValue(groupName, out string? countReference))
                         {
                             string countName = $"{ToFieldName(groupName)}Count";
-                            writer.WriteLine($"\t\tushort {countName} = {countReference};"); // copy as add method will overwrite
-                            writer.WriteLine($"\t\tfor (int i = 0; i < {countName}; i++)");
+                            writer.WriteLine($"\t\tushort? {countName} = {countReference};"); // copy as add method will overwrite
+                            writer.WriteLine($"\t\tfor (int i = 0; i < ({countName} ?? 0); i++)");
                             writer.WriteLine("\t\t{");
                             writer.WriteLine($"\t\t\tAdd{groupName}();");
                             writer.WriteLine("\t\t}");
@@ -307,11 +307,13 @@ public class ModelGenerator : IIncrementalGenerator
                     builderWriter.WriteLine("\tpublic bool Build(Memory<byte> buffer, out int length, out ISunSpecModel model)");
                     builderWriter.WriteLine("\t{");
                     builderWriter.WriteLine($"\t\t_model = {className}.Create(buffer);");
+                    builderWriter.WriteLine("\t\t_model.Initialise();");
                     for (int i = 0; i < groupNames.Count; i++)
                     {
                         builderWriter.WriteLine($"\t\tfor (int i = 0; i < _{fieldNames[i]}Count; i++)");
                         builderWriter.WriteLine("\t\t{");
-                        builderWriter.WriteLine($"\t\t\tModel.Add{groupNames[i]}();");
+                        builderWriter.WriteLine($"\t\t\t{groupNames[i]} child = Model.Add{groupNames[i]}();");
+                        builderWriter.WriteLine("\t\t\tchild.Initialise();");
                         builderWriter.WriteLine("\t\t}");
                     }
                     builderWriter.WriteLine("\t\tlength = Model.Length;");
@@ -336,6 +338,7 @@ public class ModelGenerator : IIncrementalGenerator
         {
             hasScaleFactors = false;
             Dictionary<int, string> writeablePointNamesByOffset = [];
+            List<string> nullableProperties = [];
             Dictionary<string, List<string>> appendicesByTypeName = new Dictionary<string, List<string>>();
             pointNames = new Dictionary<string, string>(); // used to check for unique names (because we usually derive from label)
             List<(Point, int)> scaleFactors = new List<(Point, int)>();
@@ -395,8 +398,8 @@ public class ModelGenerator : IIncrementalGenerator
                     case PointType.Int32:
                     case PointType.Int64:
                         clrType = point.Type.ToString();
-                        readMethod = $"BinaryPrimitives.Read{point.Type}BigEndian";
-                        writeMethodFormat = $"BinaryPrimitives.Write{point.Type}BigEndian({{0}}, ({clrType}){descaledValue})";
+                        readMethod = $"SunSpecNullablePrimitives.Read{point.Type}BigEndian";
+                        writeMethodFormat = $"SunSpecNullablePrimitives.Write{point.Type}BigEndian({{0}}, ({clrType}{{1}}){descaledValue})";
                         break;
                     case PointType.Bitfield16:
                     case PointType.Bitfield32:
@@ -429,35 +432,35 @@ public class ModelGenerator : IIncrementalGenerator
                         break;
                     case PointType.Float32:
                         clrType = "float";
-                        readMethod = "BinaryPrimitives.ReadSingleBigEndian";
-                        writeMethodFormat = $"BinaryPrimitives.WriteSingleBigEndian({0}, ({clrType}){descaledValue})";
+                        readMethod = "SunSpecNullablePrimitives.ReadSingleBigEndian";
+                        writeMethodFormat = $"SunSpecNullablePrimitives.WriteSingleBigEndian({{0}}, ({clrType}{{1}}){descaledValue})";
                         break;
                     case PointType.Float64:
                         clrType = "double";
-                        readMethod = "BinaryPrimitives.ReadDoubleBigEndian";
-                        writeMethodFormat = $"BinaryPrimitives.WriteDoubleBigEndian({0}, ({clrType}){descaledValue})";
+                        readMethod = "SunSpecNullablePrimitives.ReadDoubleBigEndian";
+                        writeMethodFormat = $"SunSpecNullablePrimitives.WriteDoubleBigEndian({{0}}, ({clrType}{{1}}){descaledValue})";
                         break;
                     case PointType.Acc16:
                     case PointType.Count:
                         clrType = "UInt16";
-                        readMethod = $"BinaryPrimitives.ReadUInt16BigEndian";
-                        writeMethodFormat = $"BinaryPrimitives.WriteUInt16BigEndian({{0}}, ({clrType}){descaledValue})";
+                        readMethod = $"SunSpecNullablePrimitives.ReadUInt16BigEndian";
+                        writeMethodFormat = $"SunSpecNullablePrimitives.WriteUInt16BigEndian({{0}}, ({clrType}{{1}}){descaledValue})";
                         break;
                     case PointType.Acc32:
                         clrType = "UInt32";
-                        readMethod = $"BinaryPrimitives.ReadUInt32BigEndian";
-                        writeMethodFormat = $"BinaryPrimitives.WriteUInt32BigEndian({{0}}, ({clrType}){descaledValue})";
+                        readMethod = $"SunSpecNullablePrimitives.ReadUInt32BigEndian";
+                        writeMethodFormat = $"SunSpecNullablePrimitives.WriteUInt32BigEndian({{0}}, ({clrType}{{1}}){descaledValue})";
                         break;
                     case PointType.Acc64:
                     case PointType.Eui48:
                         clrType = "UInt64";
-                        readMethod = $"BinaryPrimitives.ReadUInt64BigEndian";
-                        writeMethodFormat = $"BinaryPrimitives.WriteUInt64BigEndian({{0}}, ({clrType}){descaledValue})";
+                        readMethod = $"SunSpecNullablePrimitives.ReadUInt64BigEndian";
+                        writeMethodFormat = $"SunSpecNullablePrimitives.WriteUInt64BigEndian({{0}}, ({clrType}{{1}}){descaledValue})";
                         break;
                     case PointType.String:
                         clrType = "string";
                         readMethod = "Encoding.UTF8.GetString";
-                        writeMethodFormat = $"if (value.Length > {point.Size * 2}) throw new ArgumentOutOfRangeException(\"Value for {pointName} is greater than the maximum permitted length ({point.Size * 2} characters).\"); Span<byte> bytes = Encoding.UTF8.GetBytes(value); bytes.CopyTo({{0}});";
+                        writeMethodFormat = $"if (value.Length > {point.Size * 2}) throw new ArgumentOutOfRangeException(\"Value for {pointName} is greater than the maximum permitted length ({point.Size * 2} characters).\"); Encoding.UTF8.GetBytes(value, {{0}});";
                         break;
                     case PointType.SunSsf:
                     case PointType.Pad:
@@ -493,6 +496,9 @@ public class ModelGenerator : IIncrementalGenerator
                 if (point.IsMandatory)
                 {
                     writer.WriteLine("\t[Required]");
+                    // revert writer
+                    readMethod = readMethod.Replace("SunSpecNullablePrimitives", "BinaryPrimitives");
+                    writeMethodFormat = writeMethodFormat.Replace("SunSpecNullablePrimitives", "BinaryPrimitives");
                 }
                 if (!point.IsReadWrite)
                 {
@@ -507,10 +513,16 @@ public class ModelGenerator : IIncrementalGenerator
                     // assume all scaled typed are doubles
                     clrType = "double";
                 }
+                bool isNullable = !point.IsMandatory && point.Type != PointType.String;
+                if (isNullable)
+                {
+                    clrType += "?";
+                    nullableProperties.Add(pointName);
+                }
                 writer.WriteLine($"\tpublic {clrType} {pointName}");
                 writer.WriteLine("\t{");
                 writer.WriteLine($"\t\tget {{ return {readMethod}(_buffer.Span.Slice({currentOffset * 2})){scaler}; }}");
-                writer.WriteLine($"\t\tset {{ {String.Format(writeMethodFormat, $"_buffer.Span.Slice({currentOffset * 2})")}; }}");
+                writer.WriteLine($"\t\tset {{ {String.Format(writeMethodFormat, $"_buffer.Span.Slice({currentOffset * 2})", isNullable ? "?" : String.Empty)}; }}");
                 writer.WriteLine("\t}");
                 if (point.IsReadWrite)
                 {
@@ -539,6 +551,15 @@ public class ModelGenerator : IIncrementalGenerator
                     writer.WriteLine("\t\t\t\tbreak;");
                 }
                 writer.WriteLine("\t\t}");
+            }
+            writer.WriteLine("\t}");
+
+            writer.WriteLine();
+            writer.WriteLine("\tinternal void Initialise()");
+            writer.WriteLine("\t{");
+            foreach (string pointName in nullableProperties)
+            {
+                writer.WriteLine($"\t\t{pointName} = null;");
             }
             writer.WriteLine("\t}");
 
@@ -589,8 +610,8 @@ public class ModelGenerator : IIncrementalGenerator
                 return false;
             }
 
-            readMethod = $"BinaryPrimitives.Read{baseType}BigEndian";
-            writeMethodFormat = $"BinaryPrimitives.Write{baseType}BigEndian({{0}}, ({baseType})value)";
+            readMethod = $"SunSpecNullablePrimitives.Read{baseType}BigEndian";
+            writeMethodFormat = $"SunSpecNullablePrimitives.Write{baseType}BigEndian({{0}}, ({baseType}{{1}})value)";
             if (point.Symbols.Count > 0)
             {
                 readMethod = $"({clrType}){readMethod}"; // cast to type
