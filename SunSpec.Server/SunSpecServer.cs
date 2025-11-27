@@ -46,7 +46,7 @@ public class SunSpecServer : IDisposable
         _server = new ModbusTcpServer((ILogger?)loggerFactory?.CreateLogger<ModbusTcpServer>() ?? NullLogger.Instance);
         _server.EnableRaisingEvents = true;
         _server.RegistersChanged += OnRegistersChanged;
-        _server.ConnectionTimeout = Timeout.InfiniteTimeSpan; // 1 minute timeout generally troublesome
+        _server.ConnectionTimeout = TimeSpan.MaxValue; // 1 minute timeout generally troublesome
         if (unitId != ZeroUnitIdentifier)
         {
             _server.AddUnit(unitId);
