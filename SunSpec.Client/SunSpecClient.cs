@@ -67,7 +67,12 @@ public class SunSpecClient : IDisposable
             {
                 modelLength += 2;
                 Model schema = Model.GetModel(modelId);
-                _schemata.Add(modelId, new ReadableGroup(schema.Group, _client, readFrom, modelLength));
+                if (!_schemata.ContainsKey(modelId))
+                {
+                    // TODO: think about whether we still want to provide readable access through these
+                    // schemas; for now, just add the first one
+                    _schemata.Add(modelId, new ReadableGroup(schema.Group, _client, readFrom, modelLength));
+                }
                 buffer = await _client.ReadManyHoldingRegistersAsync<byte>(_unitId, readFrom, modelLength * 2);
                 ISunSpecModel model = SunSpecAnyModelBuilder.Create(modelId, buffer);
                 _models.Add(model);
