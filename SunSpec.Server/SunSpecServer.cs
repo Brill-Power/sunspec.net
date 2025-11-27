@@ -12,6 +12,7 @@ using System.Text;
 using FluentModbus;
 using SunSpec.Models.Generated;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace SunSpec.Server;
 
@@ -24,7 +25,7 @@ public class SunSpecServer : IDisposable
 
     private readonly byte _unitId;
 
-    private readonly ILogger? _logger;
+    private readonly ILogger _logger;
 
     private readonly ModbusTcpServer _server;
     private readonly List<ISunSpecModelBuilder> _builders = [];
@@ -36,12 +37,12 @@ public class SunSpecServer : IDisposable
     {
     }
 
-    public SunSpecServer(ILogger<SunSpecServer>? logger, byte unitId = DefaultUnitIdentifier)
+    public SunSpecServer(ILoggerFactory? loggerFactory, byte unitId = DefaultUnitIdentifier)
     {
         _unitId = unitId;
-        _logger = logger;
+        _logger = (ILogger?)loggerFactory?.CreateLogger<SunSpecServer>() ?? NullLogger.Instance;
 
-        _server = new ModbusTcpServer();
+        _server = new ModbusTcpServer((ILogger?)loggerFactory?.CreateLogger<ModbusTcpServer>() ?? NullLogger.Instance);
         _server.EnableRaisingEvents = true;
         _server.RegistersChanged += OnRegistersChanged;
         if (unitId != ZeroUnitIdentifier)
