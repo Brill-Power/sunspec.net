@@ -26,7 +26,8 @@ public class SunSpecClient : IDisposable
 
     private readonly ModbusClient _client;
     private readonly byte _unitId;
-    private readonly Dictionary<uint, ReadableGroup> _schemata = [];
+    private readonly Dictionary<uint, IReadOnlyList<ReadableGroup>> _schemataByModel = [];
+    private readonly List<ReadableGroup> _schemata = [];
     private readonly List<ISunSpecModel> _models = [];
 
     public SunSpecClient(ModbusClient client, byte unitId = DefaultUnitIdentifier)
@@ -45,8 +46,11 @@ public class SunSpecClient : IDisposable
 
     public async Task ScanAsync()
     {
+        _schemataByModel.Clear();
         _schemata.Clear();
         _models.Clear();
+
+        Dictionary<uint, List<ReadableGroup>> schemataByModel = [];
 
         Memory<byte> buffer = await _client.ReadHoldingRegistersAsync(_unitId, 0, 4); // SunS + modelId + modelLength
 
@@ -67,12 +71,14 @@ public class SunSpecClient : IDisposable
             {
                 modelLength += 2;
                 Model schema = Model.GetModel(modelId);
-                if (!_schemata.ContainsKey(modelId))
+                if (!schemataByModel.TryGetValue(modelId, out List<ReadableGroup>? groups))
                 {
-                    // TODO: think about whether we still want to provide readable access through these
-                    // schemas; for now, just add the first one
-                    _schemata.Add(modelId, new ReadableGroup(schema.Group, _client, readFrom, modelLength));
+                    _schemataByModel[modelId] = groups = [];
                 }
+                ReadableGroup group = new ReadableGroup(schema.Group, _client, readFrom, modelLength);
+                groups.Add(group);
+                _schemata.Add(group);
+
                 buffer = await _client.ReadManyHoldingRegistersAsync<byte>(_unitId, readFrom, modelLength * 2);
                 ISunSpecModel model = SunSpecAnyModelBuilder.Create(modelId, buffer);
                 _models.Add(model);
@@ -82,13 +88,20 @@ public class SunSpecClient : IDisposable
             buffer = await _client.ReadHoldingRegistersAsync(_unitId, readFrom, ModelIdAndLength);
         }
         while (!IsSunSpecEndModelId(buffer.Span));
+
+        foreach (uint key in schemataByModel.Keys)
+        {
+            _schemataByModel.Add(key, schemataByModel[key].AsReadOnly());
+        }
     }
 
-    public ReadableGroup? Common => _schemata.TryGetValue(1, out ReadableGroup? group) ? group : null;
+    public ReadableGroup? Common => _schemataByModel.TryGetValue(1, out IReadOnlyList<ReadableGroup>? groups) ? groups[0] : null;
 
     public IReadOnlyList<ISunSpecModel> Models => _models;
 
-    public IReadOnlyDictionary<uint, ReadableGroup> Schemata => _schemata;
+    public IReadOnlyList<ReadableGroup> Schemata => _schemata;
+
+    public IReadOnlyDictionary<uint, IReadOnlyList<ReadableGroup>> SchemataByModel => _schemataByModel;
 
     private static void EnsureStartsWithSunSpecPreamble(ReadOnlySpan<byte> data)
     {
