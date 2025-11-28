@@ -8,7 +8,7 @@ using System.Text;
 
 namespace SunSpec.Models.Generated;
 
-internal static class SunSpecNullablePrimitives
+public static class SunSpecNullablePrimitives
 {
     private static class Null
     {
