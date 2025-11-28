@@ -29,10 +29,20 @@ public class ReadableGroup
 
     public Group Group { get; init; }
 
+    public void Read()
+    {
+        Span<byte> data = _modbusClient.ReadManyHoldingRegisters<byte>(SunSpecClient.DefaultUnitIdentifier, _startAddress, (ushort)(_modelLength + 1) * 2); // + 1 for end inclusive.
+        SetValues(data);
+    }
+
     public async Task ReadAsync()
     {
         Memory<byte> data = await _modbusClient.ReadManyHoldingRegistersAsync<byte>(SunSpecClient.DefaultUnitIdentifier, _startAddress, (ushort)(_modelLength + 1) * 2); // + 1 for end inclusive.
+        SetValues(data.Span);
+    }
 
+    private void SetValues(Span<byte> data)
+    {
         ushort position = 0;
         foreach (Point point in Group.Points)
         {
@@ -41,7 +51,7 @@ public class ReadableGroup
                 continue;
             }
 
-            point.Value = GetPointValue(point.Type, data.Span.Slice(position, point.Size * 2));
+            point.Value = GetPointValue(point.Type, data.Slice(position, point.Size * 2));
             position += (ushort)(point.Size * 2);
         }
     }

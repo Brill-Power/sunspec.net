@@ -44,11 +44,60 @@ public class SunSpecClient : IDisposable
         }
     }
 
+    public void Scan()
+    {
+        PrepareScan();
+
+        Dictionary<uint, List<ReadableGroup>> schemataByModel = [];
+
+        Span<byte> buffer = _client.ReadHoldingRegisters(_unitId, 0, 4); // SunS + modelId + modelLength
+
+        EnsureStartsWithSunSpecPreamble(buffer);
+        EnsureCommonModel(buffer);
+
+        ushort readFrom = CommonModelStartAddress;
+        do
+        {
+            buffer = _client.ReadHoldingRegisters(_unitId, readFrom, ModelIdAndLength);
+            (ushort modelId, ushort modelLength) = GetModelIdAndLength(buffer);
+
+            if (modelId == 0)
+            {
+                readFrom += 2;
+            }
+            else
+            {
+                modelLength += 2;
+                Model schema = Model.GetModel(modelId);
+                if (!schemataByModel.TryGetValue(modelId, out List<ReadableGroup>? groups))
+                {
+                    _schemataByModel[modelId] = groups = [];
+                }
+                ReadableGroup group = new ReadableGroup(schema.Group, _client, readFrom, modelLength);
+                groups.Add(group);
+                _schemata.Add(group);
+
+                buffer = _client.ReadManyHoldingRegisters<byte>(_unitId, readFrom, modelLength * 2);
+                Memory<byte> memory = new byte[buffer.Length];
+                buffer.CopyTo(memory.Span);
+                ISunSpecModel model = SunSpecAnyModelBuilder.Create(modelId, memory);
+                _models.Add(model);
+                readFrom += modelLength;
+            }
+
+            buffer = _client.ReadHoldingRegisters(_unitId, readFrom, ModelIdAndLength);
+        }
+        while (!IsSunSpecEndModelId(buffer));
+
+        foreach (uint key in schemataByModel.Keys)
+        {
+            _schemataByModel.Add(key, schemataByModel[key].AsReadOnly());
+        }
+    }
+
     public async Task ScanAsync()
     {
-        _schemataByModel.Clear();
-        _schemata.Clear();
-        _models.Clear();
+        PrepareScan();
 
         Dictionary<uint, List<ReadableGroup>> schemataByModel = [];
 
@@ -93,6 +142,13 @@ public class SunSpecClient : IDisposable
         {
             _schemataByModel.Add(key, schemataByModel[key].AsReadOnly());
         }
+    }
+
+    private void PrepareScan()
+    {
+        _schemataByModel.Clear();
+        _schemata.Clear();
+        _models.Clear();
     }
 
     public ReadableGroup? Common => _schemataByModel.TryGetValue(1, out IReadOnlyList<ReadableGroup>? groups) ? groups[0] : null;
