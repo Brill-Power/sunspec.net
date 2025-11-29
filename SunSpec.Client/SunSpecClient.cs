@@ -26,9 +26,9 @@ public class SunSpecClient : IDisposable
 
     private readonly ModbusClient _client;
     private readonly byte _unitId;
-    private readonly Dictionary<uint, IReadOnlyList<ReadableGroup>> _schemataByModel = [];
-    private readonly List<ReadableGroup> _schemata = [];
-    private readonly List<ISunSpecModel> _models = [];
+    private readonly Dictionary<uint, IReadOnlyList<BoundModel>> _boundModelsById = [];
+    private readonly List<BoundModel> _boundModels = [];
+    private readonly List<ISunSpecModel> _proxies = [];
 
     public SunSpecClient(ModbusClient client, byte unitId = DefaultUnitIdentifier)
     {
@@ -44,62 +44,11 @@ public class SunSpecClient : IDisposable
         }
     }
 
-    public void Scan()
-    {
-        PrepareScan();
-
-        Dictionary<uint, List<ReadableGroup>> schemataByModel = [];
-
-        Span<byte> buffer = _client.ReadHoldingRegisters(_unitId, 0, 4); // SunS + modelId + modelLength
-
-        EnsureStartsWithSunSpecPreamble(buffer);
-        EnsureCommonModel(buffer);
-
-        ushort readFrom = CommonModelStartAddress;
-        do
-        {
-            buffer = _client.ReadHoldingRegisters(_unitId, readFrom, ModelIdAndLength);
-            (ushort modelId, ushort modelLength) = GetModelIdAndLength(buffer);
-
-            if (modelId == 0)
-            {
-                readFrom += 2;
-            }
-            else
-            {
-                modelLength += 2;
-                Model schema = Model.GetModel(modelId);
-                if (!schemataByModel.TryGetValue(modelId, out List<ReadableGroup>? groups))
-                {
-                    _schemataByModel[modelId] = groups = [];
-                }
-                ReadableGroup group = new ReadableGroup(schema.Group, _client, readFrom, modelLength);
-                groups.Add(group);
-                _schemata.Add(group);
-
-                buffer = _client.ReadManyHoldingRegisters<byte>(_unitId, readFrom, modelLength * 2);
-                Memory<byte> memory = new byte[buffer.Length];
-                buffer.CopyTo(memory.Span);
-                ISunSpecModel model = SunSpecAnyModelBuilder.Create(modelId, memory);
-                _models.Add(model);
-                readFrom += modelLength;
-            }
-
-            buffer = _client.ReadHoldingRegisters(_unitId, readFrom, ModelIdAndLength);
-        }
-        while (!IsSunSpecEndModelId(buffer));
-
-        foreach (uint key in schemataByModel.Keys)
-        {
-            _schemataByModel.Add(key, schemataByModel[key].AsReadOnly());
-        }
-    }
-
     public async Task ScanAsync()
     {
         PrepareScan();
 
-        Dictionary<uint, List<ReadableGroup>> schemataByModel = [];
+        Dictionary<uint, List<BoundModel>> schemataByModel = [];
 
         Memory<byte> buffer = await _client.ReadHoldingRegistersAsync(_unitId, 0, 4); // SunS + modelId + modelLength
 
@@ -119,18 +68,18 @@ public class SunSpecClient : IDisposable
             else
             {
                 modelLength += 2;
-                Model schema = Model.GetModel(modelId);
-                if (!schemataByModel.TryGetValue(modelId, out List<ReadableGroup>? groups))
+                Model model = Model.GetModel(modelId);
+                if (!schemataByModel.TryGetValue(modelId, out List<BoundModel>? groups))
                 {
-                    _schemataByModel[modelId] = groups = [];
+                    _boundModelsById[modelId] = groups = [];
                 }
-                ReadableGroup group = new ReadableGroup(schema.Group, _client, readFrom, modelLength);
-                groups.Add(group);
-                _schemata.Add(group);
+                BoundModel boundModel = new BoundModel(model, _client, _unitId, readFrom, modelLength);
+                groups.Add(boundModel);
+                _boundModels.Add(boundModel);
 
                 buffer = await _client.ReadManyHoldingRegistersAsync<byte>(_unitId, readFrom, modelLength * 2);
-                ISunSpecModel model = SunSpecAnyModelBuilder.Create(modelId, buffer);
-                _models.Add(model);
+                ISunSpecModel typedProxy = SunSpecAnyModelBuilder.Create(modelId, buffer);
+                _proxies.Add(typedProxy);
                 readFrom += modelLength;
             }
 
@@ -140,24 +89,24 @@ public class SunSpecClient : IDisposable
 
         foreach (uint key in schemataByModel.Keys)
         {
-            _schemataByModel.Add(key, schemataByModel[key].AsReadOnly());
+            _boundModelsById.Add(key, schemataByModel[key].AsReadOnly());
         }
     }
 
     private void PrepareScan()
     {
-        _schemataByModel.Clear();
-        _schemata.Clear();
-        _models.Clear();
+        _boundModelsById.Clear();
+        _boundModels.Clear();
+        _proxies.Clear();
     }
 
-    public ReadableGroup? Common => _schemataByModel.TryGetValue(1, out IReadOnlyList<ReadableGroup>? groups) ? groups[0] : null;
+    public BoundModel? Common => _boundModelsById.TryGetValue(1, out IReadOnlyList<BoundModel>? groups) ? groups[0] : null;
 
-    public IReadOnlyList<ISunSpecModel> Models => _models;
+    public IReadOnlyList<ISunSpecModel> Proxies => _proxies;
 
-    public IReadOnlyList<ReadableGroup> Schemata => _schemata;
+    public IReadOnlyList<BoundModel> BoundModels => _boundModels;
 
-    public IReadOnlyDictionary<uint, IReadOnlyList<ReadableGroup>> SchemataByModel => _schemataByModel;
+    public IReadOnlyDictionary<uint, IReadOnlyList<BoundModel>> BoundModelsByID => _boundModelsById;
 
     private static void EnsureStartsWithSunSpecPreamble(ReadOnlySpan<byte> data)
     {
