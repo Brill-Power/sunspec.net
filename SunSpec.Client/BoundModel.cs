@@ -42,6 +42,7 @@ public class BoundModel
             {
                 modelValue = new ModelValue(point, _buffer, offset);
             }
+            values.Add(modelValue);
             offset += point.Size * 2;
         }
         Values = values.AsReadOnly();
