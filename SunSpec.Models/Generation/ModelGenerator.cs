@@ -427,6 +427,10 @@ public class ModelGenerator : IIncrementalGenerator
                         {
                             continue;
                         }
+                        if (appendicesByTypeName.TryGetValue(clrType, out List<string>? lines))
+                        {
+                            lines.Insert(0, "[Flags]");
+                        }
                         break;
                     case PointType.Enum16:
                     case PointType.Enum32:
@@ -585,7 +589,6 @@ public class ModelGenerator : IIncrementalGenerator
             // type to hold scale factors
             if (scaleFactors.Count > 0)
             {
-                appendixWriter.WriteLine();
                 appendixWriter.WriteLine($"public class {className}ScaleFactors");
                 appendixWriter.WriteLine("{");
                 appendixWriter.WriteLine("\tprivate readonly Memory<byte> _buffer;");
@@ -594,18 +597,18 @@ public class ModelGenerator : IIncrementalGenerator
                 appendixWriter.WriteLine("\t{");
                 appendixWriter.WriteLine("\t\t_buffer = buffer;");
                 appendixWriter.WriteLine("\t}");
-                appendixWriter.WriteLine();
                 foreach ((Point point, int currentOffset) in scaleFactors)
                 {
                     string name = point.Name.Replace("_SF", String.Empty);
+                    appendixWriter.WriteLine();
                     appendixWriter.WriteLine($"\tpublic double {name}");
                     appendixWriter.WriteLine("\t{");
                     appendixWriter.WriteLine($"\t\tget {{ return Math.Pow(10, BinaryPrimitives.ReadInt16BigEndian(_buffer.Span.Slice({currentOffset * 2}))); }}");
                     appendixWriter.WriteLine($"\t\tset {{ BinaryPrimitives.WriteInt16BigEndian(_buffer.Span.Slice({currentOffset * 2}), (short)Math.Log10(value)); }}");
                     appendixWriter.WriteLine("\t}");
-                    appendixWriter.WriteLine();
                 }
                 appendixWriter.WriteLine("}");
+                appendixWriter.WriteLine();
             }
 
             // any other types
