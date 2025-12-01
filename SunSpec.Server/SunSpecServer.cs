@@ -13,7 +13,6 @@ using FluentModbus;
 using SunSpec.Models.Generated;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Threading;
 
 namespace SunSpec.Server;
 

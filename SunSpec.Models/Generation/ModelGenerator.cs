@@ -349,6 +349,7 @@ public class ModelGenerator : IIncrementalGenerator
             hasScaleFactors = false;
             Dictionary<int, string> writeablePointNamesByOffset = [];
             List<string> nullableProperties = [];
+            List<int> paddingOffsets = [];
             Dictionary<string, List<string>> appendicesByTypeName = new Dictionary<string, List<string>>();
             pointNames = new Dictionary<string, string>(); // used to check for unique names (because we usually derive from label)
             List<(Point, int)> scaleFactors = new List<(Point, int)>();
@@ -472,8 +473,10 @@ public class ModelGenerator : IIncrementalGenerator
                         readMethod = "Encoding.UTF8.GetString";
                         writeMethodFormat = $"if (value.Length > {point.Size * 2}) throw new ArgumentOutOfRangeException(\"Value for {pointName} is greater than the maximum permitted length ({point.Size * 2} characters).\"); Encoding.UTF8.GetBytes(value, {{0}});";
                         break;
-                    case PointType.SunSsf:
                     case PointType.Pad:
+                        paddingOffsets.Add(currentOffset);
+                        continue;
+                    case PointType.SunSsf:
                         continue;
                     default:
                         throw new NotSupportedException($"Type {point.Type} of field {point.Label} is not supported.");
@@ -571,6 +574,11 @@ public class ModelGenerator : IIncrementalGenerator
             foreach (string pointName in nullableProperties)
             {
                 writer.WriteLine($"\t\t{pointName} = null;");
+            }
+            // all padding registers should be set to 0x8000
+            foreach (int paddingOffset in paddingOffsets)
+            {
+                writer.WriteLine($"\t\tSunSpecNullablePrimitives.WritePadNull(_buffer.Span.Slice({paddingOffset * 2}));");
             }
             writer.WriteLine("\t}");
 

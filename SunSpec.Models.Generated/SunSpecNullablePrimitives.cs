@@ -16,6 +16,7 @@ public static class SunSpecNullablePrimitives
         public const ushort UInt16 = 0xffff;
         public const ushort Accumulator16 = 0x0000;
         public const ushort Scale = 0x8000;
+        public const ushort Pad = 0x8000;
         public const int Int32 = -0x80000000;
         public const int Single = 0x7fc00000; // aka NaN
         public const uint UInt32 = 0xffffffff;
@@ -133,5 +134,10 @@ public static class SunSpecNullablePrimitives
         {
             Encoding.UTF8.GetBytes(value, destination);
         }
+    }
+
+    internal static void WritePadNull(Span<byte> destination)
+    {
+        BinaryPrimitives.WriteUInt16BigEndian(destination, Null.Pad);
     }
 }
