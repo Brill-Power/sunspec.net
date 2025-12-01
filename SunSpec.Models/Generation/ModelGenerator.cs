@@ -129,7 +129,17 @@ public class ModelGenerator : IIncrementalGenerator
                     writer.WriteLine("\t}");
                     writer.WriteLine();
 
-                    int offset = ProcessPoints(className, model.Group.Points, writer, appendixWriter, out Dictionary<string, string> pointNames, out bool hasScaleFactors);
+                    // find count names
+                    HashSet<string> countNames = [];
+                    foreach (Group group in model.Group.Groups)
+                    {
+                        if (group.Count is string s && !String.IsNullOrEmpty(s))
+                        {
+                            countNames.Add(s);
+                        }
+                    }
+
+                    int offset = ProcessPoints(className, model.Group.Points, countNames, writer, appendixWriter, out Dictionary<string, string> pointNames, out bool hasScaleFactors);
 
                     List<string> groupNames = [];
                     Dictionary<string, string?> countReferences = [];
@@ -198,7 +208,7 @@ public class ModelGenerator : IIncrementalGenerator
                         appendixWriter.WriteLine("\t}");
                         using (StringWriter appendixAppendixWriter = new StringWriter())
                         {
-                            int groupOffset = ProcessPoints(groupName, group.Points, appendixWriter, appendixAppendixWriter, out _, out bool hasGroupScaleFactors);
+                            int groupOffset = ProcessPoints(groupName, group.Points, new HashSet<string>(), appendixWriter, appendixAppendixWriter, out _, out bool hasGroupScaleFactors);
                             if (hasGroupScaleFactors)
                             {
                                 throw new NotSupportedException("Scale factors on groups are not currently supported.");
@@ -269,7 +279,7 @@ public class ModelGenerator : IIncrementalGenerator
                         {
                             string countName = $"{ToFieldName(groupName)}Count";
                             writer.WriteLine($"\t\tushort? {countName} = {countReference};"); // copy as add method will overwrite
-                            writer.WriteLine($"\t\tfor (int i = 0; i < ({countName} ?? 0); i++)");
+                            writer.WriteLine($"\t\tfor (int i = 0; i < {countName}; i++)");
                             writer.WriteLine("\t\t{");
                             writer.WriteLine($"\t\t\tAdd{groupName}();");
                             writer.WriteLine("\t\t}");
@@ -334,7 +344,7 @@ public class ModelGenerator : IIncrementalGenerator
             }
         }
 
-        private static int ProcessPoints(string className, IReadOnlyList<Point> points, TextWriter writer, TextWriter appendixWriter, out Dictionary<string, string> pointNames, out bool hasScaleFactors)
+        private static int ProcessPoints(string className, IReadOnlyList<Point> points, ISet<string> countNames, TextWriter writer, TextWriter appendixWriter, out Dictionary<string, string> pointNames, out bool hasScaleFactors)
         {
             hasScaleFactors = false;
             Dictionary<int, string> writeablePointNamesByOffset = [];
@@ -493,8 +503,10 @@ public class ModelGenerator : IIncrementalGenerator
                     }
                     writer.WriteLine($"\t[Description(\"{point.Description.Replace("\"", "\\\"")}\")]");
                 }
-                if (point.IsMandatory)
+                bool isNullable = point.Type != PointType.String;
+                if (point.IsMandatory || countNames.Contains(point.Name))
                 {
+                    isNullable = false;
                     writer.WriteLine("\t[Required]");
                     // revert writer
                     readMethod = readMethod.Replace("SunSpecNullablePrimitives", "BinaryPrimitives");
@@ -513,7 +525,6 @@ public class ModelGenerator : IIncrementalGenerator
                     // assume all scaled typed are doubles
                     clrType = "double";
                 }
-                bool isNullable = !point.IsMandatory && point.Type != PointType.String;
                 if (isNullable)
                 {
                     clrType += "?";

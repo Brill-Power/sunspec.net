@@ -21,53 +21,83 @@ public static class ModbusClientExtensions
     public static Span<T> ReadManyInputRegisters<T>(this ModbusClient self, byte unitId, int startingRegister, int count)
         where T : unmanaged
     {
-        return self.ReadMany(unitId, startingRegister, count, static (mc, ui, sa, co) => mc.ReadInputRegisters<T>(ui, sa, co));
+        return self.ReadMany(unitId, startingRegister, count,
+            static (mc, ui, sa, co) => mc.ReadInputRegisters<T>(ui, sa, co));
     }
 
     public static async Task<Memory<T>> ReadManyInputRegistersAsync<T>(this ModbusClient self, byte unitId, int startingRegister, int count)
         where T : unmanaged
     {
-        return await self.ReadManyAsync(unitId, startingRegister, count, static (mc, ui, sa, co) => mc.ReadInputRegistersAsync<T>(ui, sa, co));
+        return await self.ReadManyAsync(unitId, startingRegister, count,
+            static (mc, ui, sa, co) => mc.ReadInputRegistersAsync<T>(ui, sa, co));
     }
 
     public static Span<T> ReadManyHoldingRegisters<T>(this ModbusClient self, byte unitId, int startingRegister, int count)
         where T : unmanaged
     {
-        return self.ReadMany(unitId, startingRegister, count, static (mc, ui, sa, co) => mc.ReadHoldingRegisters<T>(ui, sa, co));
+        return self.ReadMany(unitId, startingRegister, count,
+            static (mc, ui, sa, co) => mc.ReadHoldingRegisters<T>(ui, sa, co));
+    }
+
+    public static void ReadManyHoldingRegisters<T>(this ModbusClient self, byte unitId, int startingRegister, int count, Span<T> destination)
+        where T : unmanaged
+    {
+        self.ReadMany(unitId, startingRegister, count,
+            static (mc, ui, sa, co) => mc.ReadHoldingRegisters<T>(ui, sa, co), destination);
     }
 
     public static async Task<Memory<T>> ReadManyHoldingRegistersAsync<T>(this ModbusClient self, byte unitId, int startingRegister, int count)
         where T : unmanaged
     {
-        return await self.ReadManyAsync(unitId, startingRegister, count, static (mc, ui, sa, co) => mc.ReadHoldingRegistersAsync<T>(ui, sa, co));
+        return await self.ReadManyAsync(unitId, startingRegister, count,
+            static (mc, ui, sa, co) => mc.ReadHoldingRegistersAsync<T>(ui, sa, co));
+    }
+
+    public static async Task ReadManyHoldingRegistersAsync<T>(this ModbusClient self, byte unitId, int startingRegister, int count, Memory<T> destination)
+        where T : unmanaged
+    {
+        await self.ReadManyAsync(unitId, startingRegister, count,
+            static (mc, ui, sa, co) => mc.ReadHoldingRegistersAsync<T>(ui, sa, co), destination);
     }
 
     private static Span<T> ReadMany<T>(this ModbusClient self, byte unitId, int startingRegister, int count, Read<T> reader)
         where T : unmanaged
     {
-        int maxWidth = ConvertByteCountToWordCount<T>(ModbusPageWidthInBytes);
         Span<T> result = new T[count];
+        self.ReadMany(unitId, startingRegister, count, reader, result);
+        return result;
+    }
+
+    private static void ReadMany<T>(this ModbusClient self, byte unitId, int startingRegister, int count, Read<T> reader, Span<T> destination)
+        where T : unmanaged
+    {
+        int maxWidth = ConvertByteCountToWordCount<T>(ModbusPageWidthInBytes);
         for (int i = 0; i < count; i += maxWidth)
         {
             int width = Math.Min(maxWidth, count - i);
             ReadOnlySpan<T> values = reader(self, unitId, startingRegister + i, width);
-            values.CopyTo(result.Slice(i));
+            values.CopyTo(destination.Slice(i));
         }
-        return result;
     }
 
     private static async Task<Memory<T>> ReadManyAsync<T>(this ModbusClient self, byte unitId, int startingRegister, int count, ReadAsync<T> reader)
         where T : unmanaged
     {
-        int maxWidth = ConvertByteCountToWordCount<T>(ModbusPageWidthInBytes);
         Memory<T> result = new T[count];
+        await ReadManyAsync(self, unitId, startingRegister, count, reader, result);
+        return result;
+    }
+
+    private static async Task ReadManyAsync<T>(this ModbusClient self, byte unitId, int startingRegister, int count, ReadAsync<T> reader, Memory<T> destination)
+        where T : unmanaged
+    {
+        int maxWidth = ConvertByteCountToWordCount<T>(ModbusPageWidthInBytes);
         for (int i = 0; i < count; i += maxWidth)
         {
             int width = Math.Min(maxWidth, count - i);
             ReadOnlyMemory<T> values = await reader(self, unitId, startingRegister + i, width);
-            values.CopyTo(result.Slice(i));
+            values.CopyTo(destination.Slice(i));
         }
-        return result;
     }
 
     private static int ConvertByteCountToWordCount<T>(int count)

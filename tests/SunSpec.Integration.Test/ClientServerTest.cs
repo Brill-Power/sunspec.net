@@ -43,8 +43,8 @@ public class ClientServerTest
         tcpClient.Connect(new IPEndPoint(IPAddress.Loopback, 1502), ModbusEndianness.BigEndian);
         SunSpecClient client = new SunSpecClient(tcpClient);
         await client.ScanAsync();
-        Assert.Equal(4, client.Models.Count);
-        LithiumIonBank? lithiumIonBank = client.Models.OfType<LithiumIonBank>().FirstOrDefault();
+        Assert.Equal(4, client.Proxies.Count);
+        LithiumIonBank? lithiumIonBank = client.Proxies.OfType<LithiumIonBank>().FirstOrDefault();
         Assert.NotNull(lithiumIonBank);
         Assert.Null(lithiumIonBank.MinStringCurrent);
         Assert.Null(lithiumIonBank.MaxStringCurrent);
