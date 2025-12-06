@@ -28,7 +28,7 @@ public class ModelValue : IModelValue
     {
         get
         {
-            ReadOnlySpan<byte> slice = _buffer.Span.Slice(_offset);
+            ReadOnlySpan<byte> slice = _buffer.Span.Slice(_offset, Point.Size * 2);
             switch (Point.Type)
             {
                 case PointType.Acc16:
@@ -57,7 +57,7 @@ public class ModelValue : IModelValue
                 case PointType.Float64:
                     return SunSpecNullablePrimitives.ReadDoubleBigEndian(slice);
                 case PointType.String:
-                    return Encoding.UTF8.GetString(slice[0..^1]);
+                    return Encoding.UTF8.GetString(slice);
                 default:
                     return null;
             }
