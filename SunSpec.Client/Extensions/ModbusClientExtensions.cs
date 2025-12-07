@@ -32,6 +32,13 @@ public static class ModbusClientExtensions
             static (mc, ui, sa, co) => mc.ReadInputRegistersAsync<T>(ui, sa, co));
     }
 
+    public static async Task ReadManyInputRegistersAsync<T>(this ModbusClient self, byte unitId, int startingRegister, int count, Memory<T> destination)
+        where T : unmanaged
+    {
+        await self.ReadManyAsync(unitId, startingRegister, count,
+            static (mc, ui, sa, co) => mc.ReadInputRegistersAsync<T>(ui, sa, co), destination);
+    }
+
     public static Span<T> ReadManyHoldingRegisters<T>(this ModbusClient self, byte unitId, int startingRegister, int count)
         where T : unmanaged
     {
