@@ -6,38 +6,17 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using FluentModbus;
+using BrillPower.FluentModbus;
 
 namespace SunSpec.Client.Extensions;
 
-public static class ModbusClientExtensions
+internal static class ModbusClientExtensions
 {
     public const int ModbusPageWidthInRegisters = 125;
     public const int ModbusPageWidthInBytes = ModbusPageWidthInRegisters * 2;
 
     private delegate Span<T> Read<T>(ModbusClient client, byte unitId, int startingRegister, int count);
     private delegate Task<Memory<T>> ReadAsync<T>(ModbusClient client, byte unitId, int startingRegister, int count);
-
-    public static Span<T> ReadManyInputRegisters<T>(this ModbusClient self, byte unitId, int startingRegister, int count)
-        where T : unmanaged
-    {
-        return self.ReadMany(unitId, startingRegister, count,
-            static (mc, ui, sa, co) => mc.ReadInputRegisters<T>(ui, sa, co));
-    }
-
-    public static async Task<Memory<T>> ReadManyInputRegistersAsync<T>(this ModbusClient self, byte unitId, int startingRegister, int count)
-        where T : unmanaged
-    {
-        return await self.ReadManyAsync(unitId, startingRegister, count,
-            static (mc, ui, sa, co) => mc.ReadInputRegistersAsync<T>(ui, sa, co));
-    }
-
-    public static async Task ReadManyInputRegistersAsync<T>(this ModbusClient self, byte unitId, int startingRegister, int count, Memory<T> destination)
-        where T : unmanaged
-    {
-        await self.ReadManyAsync(unitId, startingRegister, count,
-            static (mc, ui, sa, co) => mc.ReadInputRegistersAsync<T>(ui, sa, co), destination);
-    }
 
     public static Span<T> ReadManyHoldingRegisters<T>(this ModbusClient self, byte unitId, int startingRegister, int count)
         where T : unmanaged

@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-using FluentModbus;
+using BrillPower.FluentModbus;
 using SunSpec.Client;
 using SunSpec.Server;
 using SunSpec.Models.Generated;

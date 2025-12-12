@@ -9,7 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text;
-using FluentModbus;
+using BrillPower.FluentModbus;
 using SunSpec.Models.Generated;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

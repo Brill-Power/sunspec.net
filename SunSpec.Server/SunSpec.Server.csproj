@@ -7,12 +7,14 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\FluentModbus\src\FluentModbus\FluentModbus.csproj" />
         <ProjectReference Include="..\SunSpec.Models\SunSpec.Models.csproj" />
         <ProjectReference Include="..\SunSpec.Models.Generated\SunSpec.Models.Generated.csproj" />
     </ItemGroup>
 
     <ItemGroup>
+
+      <PackageReference Include="BrillPower.FluentModbus" Version="0.0.2" />
+
       <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.10" />
     </ItemGroup>
 

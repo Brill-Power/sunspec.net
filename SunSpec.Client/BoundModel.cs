@@ -6,7 +6,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using FluentModbus;
+using BrillPower.FluentModbus;
 using SunSpec.Client.Extensions;
 using SunSpec.Models;
 

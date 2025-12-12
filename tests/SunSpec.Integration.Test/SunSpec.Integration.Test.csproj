@@ -21,7 +21,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\FluentModbus\src\FluentModbus\FluentModbus.csproj" />
     <ProjectReference Include="..\..\SunSpec.Client\SunSpec.Client.csproj" />
     <ProjectReference Include="..\..\SunSpec.Server\SunSpec.Server.csproj" />
     <ProjectReference Include="..\..\SunSpec.Models.Generated\SunSpec.Models.Generated.csproj" />

@@ -5,7 +5,7 @@
  */
 using System;
 using System.Text;
-using FluentModbus;
+using BrillPower.FluentModbus;
 using SunSpec.Models;
 using SunSpec.Models.Generated;
 
