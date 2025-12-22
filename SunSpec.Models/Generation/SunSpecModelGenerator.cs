@@ -534,6 +534,11 @@ public class ModelGenerator : IIncrementalGenerator
                 }
                 if (isNullable)
                 {
+                    // check if read method contains a cast; if it does, need to make it nullable
+                    if (readMethod[0] == '(')
+                    {
+                        readMethod = readMethod.Replace($"({clrType})", $"({clrType}?)");
+                    }
                     clrType += "?";
                     nullableProperties.Add(pointName);
                 }
