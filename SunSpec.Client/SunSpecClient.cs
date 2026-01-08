@@ -8,8 +8,6 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
-using BrillPower.FluentModbus;
-using SunSpec.Client.Extensions;
 using SunSpec.Models;
 using SunSpec.Models.Generated;
 
@@ -17,23 +15,19 @@ namespace SunSpec.Client;
 
 public class SunSpecClient : IDisposable
 {
-    internal const byte DefaultUnitIdentifier = 0x01;
-
     private const int CommonModelId = 1;
     private const ushort CommonModelStartAddress = 2;
     private const int CommonModelStartByte = 4;
     private const ushort ModelIdAndLength = 2;
 
-    private readonly ModbusClient _client;
-    private readonly byte _unitId;
+    private readonly IModbusClient _client;
     private readonly Dictionary<uint, IReadOnlyList<BoundModel>> _boundModelsById = [];
     private readonly List<BoundModel> _boundModels = [];
     private readonly List<ISunSpecModel> _proxies = [];
 
-    public SunSpecClient(ModbusClient client, byte unitId = DefaultUnitIdentifier)
+    public SunSpecClient(IModbusClient client)
     {
         _client = client;
-        _unitId = unitId;
     }
 
     public void Dispose()
@@ -50,7 +44,7 @@ public class SunSpecClient : IDisposable
 
         Dictionary<uint, List<BoundModel>> schemataByModel = [];
 
-        Memory<byte> buffer = await _client.ReadHoldingRegistersAsync(_unitId, 0, 4); // SunS + modelId + modelLength
+        Memory<byte> buffer = await _client.ReadHoldingRegistersAsync(0, 4); // SunS + modelId + modelLength
 
         EnsureStartsWithSunSpecPreamble(buffer.Span);
         EnsureCommonModel(buffer.Span);
@@ -58,7 +52,7 @@ public class SunSpecClient : IDisposable
         ushort readFrom = CommonModelStartAddress;
         do
         {
-            buffer = await _client.ReadHoldingRegistersAsync(_unitId, readFrom, ModelIdAndLength);
+            buffer = await _client.ReadHoldingRegistersAsync(readFrom, ModelIdAndLength);
             (ushort modelId, ushort modelLength) = GetModelIdAndLength(buffer.Span);
 
             if (modelId == 0)
@@ -73,17 +67,17 @@ public class SunSpecClient : IDisposable
                 {
                     _boundModelsById[modelId] = groups = [];
                 }
-                BoundModel boundModel = new BoundModel(model, _client, _unitId, readFrom, modelLength);
+                BoundModel boundModel = new BoundModel(model, _client, readFrom, modelLength);
                 groups.Add(boundModel);
                 _boundModels.Add(boundModel);
 
-                buffer = await _client.ReadManyHoldingRegistersAsync<byte>(_unitId, readFrom, modelLength * 2);
+                buffer = await _client.ReadHoldingRegistersAsync(readFrom, modelLength * 2);
                 ISunSpecModel typedProxy = SunSpecAnyModelBuilder.Create(modelId, buffer);
                 _proxies.Add(typedProxy);
                 readFrom += modelLength;
             }
 
-            buffer = await _client.ReadHoldingRegistersAsync(_unitId, readFrom, ModelIdAndLength);
+            buffer = await _client.ReadHoldingRegistersAsync(readFrom, ModelIdAndLength);
         }
         while (!IsSunSpecEndModelId(buffer.Span));
 

@@ -8,7 +8,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using BrillPower.FluentModbus;
 
-namespace SunSpec.Client.Extensions;
+namespace SunSpec.Client.FluentModbus.Extensions;
 
 internal static class ModbusClientExtensions
 {

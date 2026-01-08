@@ -15,8 +15,4 @@
 
     </ItemGroup>
 
-    <ItemGroup>
-      <PackageReference Include="BrillPower.FluentModbus" Version="0.0.2" />
-    </ItemGroup>
-
 </Project>

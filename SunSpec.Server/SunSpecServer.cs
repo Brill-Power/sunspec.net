@@ -9,7 +9,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text;
-using BrillPower.FluentModbus;
 using SunSpec.Models.Generated;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,38 +17,26 @@ namespace SunSpec.Server;
 
 public class SunSpecServer : IDisposable
 {
-    private const byte ZeroUnitIdentifier = 0x00;
-    private const byte DefaultUnitIdentifier = 0x01;
-
     private static readonly byte[] Preamble = Encoding.UTF8.GetBytes("SunS");
-
-    private readonly byte _unitId;
 
     private readonly ILogger _logger;
 
-    private readonly ModbusTcpServer _server;
+    private readonly IModbusServer _server;
     private readonly List<ISunSpecModelBuilder> _builders = [];
     private readonly CommonBuilder _commonModelBuilder = new CommonBuilder();
     private readonly SortedDictionary<int, ISunSpecModel> _modelsByStartingRegister = [];
     private int _currentRegister;
 
-    public SunSpecServer(byte unitId = DefaultUnitIdentifier) : this(null, unitId)
+    public SunSpecServer(IModbusServer modbusServer) : this(modbusServer, null)
     {
     }
 
-    public SunSpecServer(ILoggerFactory? loggerFactory, byte unitId = DefaultUnitIdentifier)
+    public SunSpecServer(IModbusServer modbusServer, ILogger<SunSpecServer>? logger)
     {
-        _unitId = unitId;
-        _logger = (ILogger?)loggerFactory?.CreateLogger<SunSpecServer>() ?? NullLogger.Instance;
+        _logger = (ILogger?)logger ?? NullLogger.Instance;
 
-        _server = new ModbusTcpServer((ILogger?)loggerFactory?.CreateLogger<ModbusTcpServer>() ?? NullLogger.Instance);
-        _server.EnableRaisingEvents = true;
+        _server = modbusServer;
         _server.RegistersChanged += OnRegistersChanged;
-        _server.ConnectionTimeout = TimeSpan.MaxValue; // 1 minute timeout generally troublesome
-        if (unitId != ZeroUnitIdentifier)
-        {
-            _server.AddUnit(unitId);
-        }
 
         Initialise();
         Build();
@@ -72,7 +59,7 @@ public class SunSpecServer : IDisposable
         {
             throw new InvalidOperationException($"Cannot call {nameof(Build)} unless {nameof(Initialise)} is called first.");
         }
-        Memory<byte> holdingRegisters = _server.GetHoldingRegisterMemory(_unitId);
+        Memory<byte> holdingRegisters = _server.GetHoldingRegisterMemory();
         lock (_builders)
         {
             foreach (ISunSpecModelBuilder builder in _builders)
@@ -95,7 +82,7 @@ public class SunSpecServer : IDisposable
             _builders.Clear();
             _modelsByStartingRegister.Clear();
         }
-        Span<byte> holdingRegisters = _server.GetHoldingRegisterBuffer(_unitId);
+        Span<byte> holdingRegisters = _server.GetHoldingRegisterMemory().Span;
         holdingRegisters.Fill(0);
         Preamble.CopyTo(holdingRegisters);
         _currentRegister = Preamble.Length / 2;
@@ -127,7 +114,7 @@ public class SunSpecServer : IDisposable
 
     private void UpdateFooter()
     {
-        BinaryPrimitives.WriteUInt16BigEndian(_server.GetHoldingRegisterBuffer(_unitId).Slice(_currentRegister * 2), 0xFFFF);
+        BinaryPrimitives.WriteUInt16BigEndian(_server.GetHoldingRegisterMemory().Span.Slice(_currentRegister * 2), 0xFFFF);
     }
 
     private void OnRegistersChanged(object? sender, RegistersChangedEventArgs e)

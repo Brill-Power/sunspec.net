@@ -6,24 +6,20 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using BrillPower.FluentModbus;
-using SunSpec.Client.Extensions;
 using SunSpec.Models;
 
 namespace SunSpec.Client;
 
 public class BoundModel
 {
-    private readonly ModbusClient _modbusClient;
-    private readonly byte _unitId;
+    private readonly IModbusClient _modbusClient;
     private readonly Memory<byte> _buffer;
     private readonly ushort _startAddress;
     private readonly ushort _modelLength;
 
-    public BoundModel(Model model, ModbusClient client, byte unitId, ushort startAddress, ushort modelLength)
+    public BoundModel(Model model, IModbusClient client, ushort startAddress, ushort modelLength)
     {
         _modbusClient = client;
-        _unitId = unitId;
         _startAddress = startAddress;
         _modelLength = modelLength;
         Model = model;
@@ -36,7 +32,7 @@ public class BoundModel
             IModelValue modelValue;
             if (point.IsReadWrite)
             {
-                modelValue = new WriteableModelValue(client, unitId, startAddress, point, _buffer, offset);
+                modelValue = new WriteableModelValue(client, startAddress, point, _buffer, offset);
             }
             else
             {
@@ -54,6 +50,6 @@ public class BoundModel
 
     public async Task ReadAsync()
     {
-        await _modbusClient.ReadManyHoldingRegistersAsync(_unitId, _startAddress, _modelLength * 2, _buffer);
+        await _modbusClient.ReadHoldingRegistersAsync(_startAddress, _buffer);
     }
 }

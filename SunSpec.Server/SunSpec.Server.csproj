@@ -13,8 +13,6 @@
 
     <ItemGroup>
 
-      <PackageReference Include="BrillPower.FluentModbus" Version="0.0.2" />
-
       <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.10" />
     </ItemGroup>
 

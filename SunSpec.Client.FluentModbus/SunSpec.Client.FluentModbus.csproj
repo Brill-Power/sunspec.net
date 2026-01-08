@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BrillPower.FluentModbus" Version="0.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../SunSpec.Client/SunSpec.Client.csproj" />
+  </ItemGroup>
+
+</Project>

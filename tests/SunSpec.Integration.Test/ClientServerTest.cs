@@ -9,6 +9,8 @@ using SunSpec.Server;
 using SunSpec.Models.Generated;
 using System.Linq;
 using System.Net;
+using SunSpec.Server.FluentModbus;
+using SunSpec.Client.FluentModbus;
 
 namespace SunSpec.Integration.Test;
 
@@ -17,7 +19,7 @@ public class ClientServerTest
     [Fact]
     public async void Test()
     {
-        SunSpecServer server = new SunSpecServer();
+        SunSpecServer server = new SunSpecServer(new FluentModbusServer());
         server.Initialise();
         server.RegisterModelBuilder(new BatteryBuilder());
         LithiumIonBankBuilder bankBuilder = new LithiumIonBankBuilder();
@@ -41,7 +43,7 @@ public class ClientServerTest
 
         ModbusTcpClient tcpClient = new ModbusTcpClient();
         tcpClient.Connect(new IPEndPoint(IPAddress.Loopback, 1502), ModbusEndianness.BigEndian);
-        SunSpecClient client = new SunSpecClient(tcpClient);
+        SunSpecClient client = new SunSpecClient(new FluentModbusClient(tcpClient));
         await client.ScanAsync();
         Assert.Equal(4, client.Proxies.Count);
         LithiumIonBank? lithiumIonBank = client.Proxies.OfType<LithiumIonBank>().FirstOrDefault();

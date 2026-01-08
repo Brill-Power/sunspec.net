@@ -5,7 +5,6 @@
  */
 using System;
 using System.Text;
-using BrillPower.FluentModbus;
 using SunSpec.Models;
 using SunSpec.Models.Generated;
 
@@ -13,15 +12,13 @@ namespace SunSpec.Client;
 
 public class WriteableModelValue : ModelValue
 {
-    private readonly ModbusClient _client;
-    private readonly byte _unitId;
+    private readonly IModbusClient _client;
     private readonly ushort _startAddress;
     private readonly Memory<byte> _buffer;
 
-    internal WriteableModelValue(ModbusClient client, byte unitId, ushort startAddress, Point point, Memory<byte> buffer, int offset) : base(point, buffer, offset)
+    internal WriteableModelValue(IModbusClient client, ushort startAddress, Point point, Memory<byte> buffer, int offset) : base(point, buffer, offset)
     {
         _client = client;
-        _unitId = unitId;
         _startAddress = startAddress;
         _buffer = buffer;
     }
@@ -74,7 +71,7 @@ public class WriteableModelValue : ModelValue
                 default:
                     throw new NotSupportedException($"Value of type {Point.Type} is not currently supported.");
             }
-            _client.WriteSingleRegister(_unitId, (ushort)(_startAddress + (_offset / 2)), bytes);
+            _client.WriteSingleRegister((ushort)(_startAddress + (_offset / 2)), bytes);
             // update buffer that backs in memory representation
             span.CopyTo(_buffer.Span.Slice(_offset));
         }
