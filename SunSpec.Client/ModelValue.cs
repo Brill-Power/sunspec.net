@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 using System;
+using System.Collections.Generic;
 using System.Text;
 using SunSpec.Models;
+using SunSpec.Models.Extensions;
 using SunSpec.Models.Generated;
 
 namespace SunSpec.Client;
@@ -29,38 +31,75 @@ public class ModelValue : IModelValue
         get
         {
             ReadOnlySpan<byte> slice = _buffer.Span.Slice(_offset, Point.Size * 2);
+            object? value;
             switch (Point.Type)
             {
                 case PointType.Acc16:
                 case PointType.Bitfield16:
                 case PointType.UInt16:
                 case PointType.Enum16:
-                    return SunSpecNullablePrimitives.ReadUInt16BigEndian(slice);
+                    value = SunSpecNullablePrimitives.ReadUInt16BigEndian(slice);
+                    break;
                 case PointType.Int16:
                 case PointType.SunSsf: // do we want this?
-                    return SunSpecNullablePrimitives.ReadInt16BigEndian(slice);
+                    value = SunSpecNullablePrimitives.ReadInt16BigEndian(slice);
+                    break;
                 case PointType.Acc32:
                 case PointType.Bitfield32:
                 case PointType.UInt32:
                 case PointType.Enum32:
-                    return SunSpecNullablePrimitives.ReadUInt32BigEndian(slice);
+                    value = SunSpecNullablePrimitives.ReadUInt32BigEndian(slice);
+                    break;
                 case PointType.Int32:
-                    return SunSpecNullablePrimitives.ReadInt32BigEndian(slice);
+                    value = SunSpecNullablePrimitives.ReadInt32BigEndian(slice);
+                    break;
                 case PointType.Acc64:
                 case PointType.Bitfield64:
                 case PointType.UInt64:
-                    return SunSpecNullablePrimitives.ReadUInt64BigEndian(slice);
+                    value = SunSpecNullablePrimitives.ReadUInt64BigEndian(slice);
+                    break;
                 case PointType.Int64:
-                    return SunSpecNullablePrimitives.ReadInt64BigEndian(slice);
+                    value = SunSpecNullablePrimitives.ReadInt64BigEndian(slice);
+                    break;
                 case PointType.Float32:
-                    return SunSpecNullablePrimitives.ReadSingleBigEndian(slice);
+                    value = SunSpecNullablePrimitives.ReadSingleBigEndian(slice);
+                    break;
                 case PointType.Float64:
-                    return SunSpecNullablePrimitives.ReadDoubleBigEndian(slice);
+                    value = SunSpecNullablePrimitives.ReadDoubleBigEndian(slice);
+                    break;
                 case PointType.String:
-                    return Encoding.UTF8.GetString(slice);
+                    value = Encoding.UTF8.GetString(slice);
+                    break;
                 default:
                     return null;
             }
+            if (value is not null && Point.Type.IsEnumOrBitfield())
+            {
+                if (Point.Type.IsEnum())
+                {
+                    foreach (Symbol symbol in Point.Symbols)
+                    {
+                        if (symbol.Value.Equals(value))
+                        {
+                            return symbol.Name;
+                        }
+                    }
+                }
+                if (Point.Type.IsBitfield())
+                {
+                    List<string> values = [];
+                    ulong t = (ulong)Convert.ChangeType(value, TypeCode.UInt64);
+                    foreach (Symbol symbol in Point.Symbols)
+                    {
+                        if ((t & (ulong)(1 << symbol.Value)) == (ulong)(1 << symbol.Value))
+                        {
+                            values.Add(symbol.Name);
+                        }
+                    }
+                    return values.ToArray();
+                }
+            }
+            return value;
         }
         set
         {
