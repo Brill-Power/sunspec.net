@@ -15,12 +15,15 @@ public class WriteableModelValue : ModelValue
     private readonly IModbusClient _client;
     private readonly ushort _startAddress;
     private readonly Memory<byte> _buffer;
+    private readonly Func<object?, object?> _descaler;
 
-    internal WriteableModelValue(IModbusClient client, ushort startAddress, Point point, Memory<byte> buffer, int offset) : base(point, buffer, offset)
+    internal WriteableModelValue(IModbusClient client, ushort startAddress, Point point, Memory<byte> buffer, int offset,
+        Func<object?, object?> scaler, Func<object?, object?> descaler) : base(point, buffer, offset, scaler)
     {
         _client = client;
         _startAddress = startAddress;
         _buffer = buffer;
+        _descaler = descaler;
     }
 
     public override object? Value
@@ -30,6 +33,7 @@ public class WriteableModelValue : ModelValue
         {
             byte[] bytes = new byte[Point.Size * 2];
             Span<byte> span = bytes;
+            value = _descaler(value);
             switch (Point.Type)
             {
                 case PointType.Acc16:

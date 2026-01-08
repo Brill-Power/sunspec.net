@@ -54,5 +54,16 @@ public class ClientServerTest
         Assert.Equal(1, lithiumIonBank.StringCount);
         LithiumIonBankString bankString = lithiumIonBank.LithiumIonBankStrings[0];
         Assert.Equal(3.25, bankString.AverageCellVoltage);
+
+        // connect via dynamic model
+        BoundModel? lithiumIonBankModel = client.BoundModels.Where(bm => bm.Model.ID == lithiumIonBank.ID).FirstOrDefault();
+        Assert.NotNull(lithiumIonBankModel);
+        // read values
+        await lithiumIonBankModel.ReadAsync();
+        // find model value
+        IModelValue? averageStringVoltage = lithiumIonBankModel.Values.Where(v => v.Point.Label == "Average String Voltage").FirstOrDefault();
+        Assert.NotNull(averageStringVoltage);
+        // ensure scale factor is applied
+        Assert.Equal(24.0, averageStringVoltage.Value);
     }
 }

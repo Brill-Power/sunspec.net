@@ -16,12 +16,14 @@ public class ModelValue : IModelValue
 {
     private readonly ReadOnlyMemory<byte> _buffer;
     protected readonly int _offset;
+    private readonly Func<object?, object?> _scaler;
 
-    internal ModelValue(Point point, ReadOnlyMemory<byte> buffer, int offset)
+    internal ModelValue(Point point, ReadOnlyMemory<byte> buffer, int offset, Func<object?, object?> scaler)
     {
         Point = point;
         _buffer = buffer;
         _offset = offset;
+        _scaler = scaler;
     }
 
     public Point Point { get; }
@@ -99,7 +101,7 @@ public class ModelValue : IModelValue
                     return values.ToArray();
                 }
             }
-            return value;
+            return _scaler(value);
         }
         set
         {
