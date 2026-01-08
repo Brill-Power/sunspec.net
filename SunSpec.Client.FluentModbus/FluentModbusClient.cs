@@ -23,6 +23,14 @@ public class FluentModbusClient : IModbusClient
         _unitId = unitId;
     }
 
+    public void Dispose()
+    {
+        if (_client is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
+    }
+
     public async ValueTask ReadHoldingRegistersAsync(int startingRegister, Memory<byte> destination)
     {
         await _client.ReadManyHoldingRegistersAsync(_unitId, startingRegister, destination.Length, destination);

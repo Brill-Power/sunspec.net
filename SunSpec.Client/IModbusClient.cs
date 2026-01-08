@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace SunSpec.Client;
 
-public interface IModbusClient
+public interface IModbusClient : IDisposable
 {
     ValueTask<Memory<byte>> ReadHoldingRegistersAsync(int startingRegister, int count);
     ValueTask ReadHoldingRegistersAsync(int startingRegister, Memory<byte> destination);

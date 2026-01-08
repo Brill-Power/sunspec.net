@@ -32,10 +32,7 @@ public class SunSpecClient : IDisposable
 
     public void Dispose()
     {
-        if (_client is IDisposable disposable)
-        {
-            disposable.Dispose();
-        }
+        _client.Dispose();
     }
 
     public async Task ScanAsync()
