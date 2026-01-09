@@ -75,7 +75,7 @@ public class WriteableModelValue : ModelValue
                 default:
                     throw new NotSupportedException($"Value of type {Point.Type} is not currently supported.");
             }
-            _client.WriteSingleRegister((ushort)(_startAddress + (_offset / 2)), bytes);
+            _client.WriteRegisters((ushort)(_startAddress + (_offset / 2)), bytes);
             // update buffer that backs in memory representation
             span.CopyTo(_buffer.Span.Slice(_offset));
         }

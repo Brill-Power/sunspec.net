@@ -41,8 +41,8 @@ public class FluentModbusClient : IModbusClient
         return await _client.ReadManyHoldingRegistersAsync<byte>(_unitId, startingRegister, count * 2);
     }
 
-    public void WriteSingleRegister(int register, byte[] value)
+    public void WriteRegisters(int startingRegister, byte[] value)
     {
-        _client.WriteSingleRegister(_unitId, (ushort)register, value);
+        _client.WriteMultipleRegisters(_unitId, (ushort)startingRegister, value);
     }
 }

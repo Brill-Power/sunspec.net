@@ -12,5 +12,5 @@ public interface IModbusClient : IDisposable
 {
     ValueTask<Memory<byte>> ReadHoldingRegistersAsync(int startingRegister, int count);
     ValueTask ReadHoldingRegistersAsync(int startingRegister, Memory<byte> destination);
-    void WriteSingleRegister(int startingRegister, byte[] value);
+    void WriteRegisters(int startingRegister, byte[] value);
 }
