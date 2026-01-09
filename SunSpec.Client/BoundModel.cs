@@ -63,25 +63,56 @@ public class BoundModel
         await _modbusClient.ReadHoldingRegistersAsync(_startAddress, _buffer);
     }
 
-    private object? Scale(object? value, string sfName)
+    private object? ScaleOrDescale(object? value, string sfName, Func<double, double, double> action)
     {
-        double? d = (double?)Convert.ChangeType(value, TypeCode.Double);
-        if (d.HasValue && _scaleFactorsByName.TryGetValue(sfName, out IModelValue? scaleFactor) &&
-            scaleFactor.Value is short s)
+        if (value is not null)
         {
-            return d.Value * Math.Pow(10, s);
+            double unscaled;
+            switch (value)
+            {
+                case double d:
+                    unscaled = d;
+                    break;
+                case float f:
+                    unscaled = f;
+                    break;
+                case ushort s:
+                    unscaled = s;
+                    break;
+                case uint u:
+                    unscaled = u;
+                    break;
+                case ulong t:
+                    unscaled = t;
+                    break;
+                case short h:
+                    unscaled = h;
+                    break;
+                case int i:
+                    unscaled = i;
+                    break;
+                case long l:
+                    unscaled = l;
+                    break;
+                default:
+                    return value;
+            }
+            if (_scaleFactorsByName.TryGetValue(sfName, out IModelValue? scaleFactor) &&
+                scaleFactor.Value is short sf)
+            {
+                return action(unscaled, sf);
+            }
         }
         return value;
     }
 
+    private object? Scale(object? value, string sfName)
+    {
+        return ScaleOrDescale(value, sfName, (v, sf) => v * Math.Pow(10, sf));
+    }
+
     private object? Descale(object? value, string sfName)
     {
-        double? d = (double?)Convert.ChangeType(value, TypeCode.Double);
-        if (d.HasValue && _scaleFactorsByName.TryGetValue(sfName, out IModelValue? scaleFactor) &&
-            scaleFactor.Value is short s)
-        {
-            return d.Value / Math.Pow(10, s);
-        }
-        return value;
+        return ScaleOrDescale(value, sfName, (v, sf) => v / Math.Pow(10, sf));
     }
 }
