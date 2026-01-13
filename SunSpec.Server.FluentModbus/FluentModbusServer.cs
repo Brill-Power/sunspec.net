@@ -27,7 +27,6 @@ public class FluentModbusServer : IModbusServer
 
         _server = server;
         _server.EnableRaisingEvents = true;
-        _server.AlwaysRaiseChangedEvent = true;
         _server.RegistersChanged += OnRegistersChanged;
         _server.ConnectionTimeout = TimeSpan.MaxValue; // 1 minute timeout generally troublesome
         if (unitId != ZeroUnitIdentifier)
