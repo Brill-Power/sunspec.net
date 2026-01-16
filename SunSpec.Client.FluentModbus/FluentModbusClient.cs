@@ -33,12 +33,12 @@ public class FluentModbusClient : IModbusClient
 
     public async ValueTask ReadHoldingRegistersAsync(int startingRegister, Memory<byte> destination)
     {
-        await _client.ReadManyHoldingRegistersAsync(_unitId, startingRegister, destination.Length, destination);
+        await _client.ReadManyHoldingRegistersAsync(_unitId, startingRegister, destination);
     }
 
     public async ValueTask<Memory<byte>> ReadHoldingRegistersAsync(int startingRegister, int count)
     {
-        return await _client.ReadManyHoldingRegistersAsync<byte>(_unitId, startingRegister, count * 2);
+        return await _client.ReadManyHoldingRegistersAsync(_unitId, startingRegister, count * 2);
     }
 
     public void WriteRegisters(int startingRegister, byte[] value)
