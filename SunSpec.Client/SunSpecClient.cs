@@ -6,6 +6,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using SunSpec.Models;
@@ -91,7 +92,7 @@ public class SunSpecClient : IDisposable
         _proxies.Clear();
     }
 
-    public BoundModel? Common => _boundModelsById.TryGetValue(1, out IReadOnlyList<BoundModel>? groups) ? groups[0] : null;
+    public Common? Common => _proxies.FirstOrDefault(p => p.ID == CommonModelId) as Common;
 
     public IReadOnlyList<ISunSpecModel> Proxies => _proxies;
 
