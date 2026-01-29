@@ -70,7 +70,14 @@ public class ModelValue : IModelValue
                     value = SunSpecNullablePrimitives.ReadDoubleBigEndian(slice);
                     break;
                 case PointType.String:
-                    value = Encoding.UTF8.GetString(slice);
+                    if (slice[0] == '\0')
+                    {
+                        value = null;
+                    }
+                    else
+                    {
+                        value = Encoding.UTF8.GetString(slice);
+                    }
                     break;
                 default:
                     return null;
