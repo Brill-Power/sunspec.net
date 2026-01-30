@@ -392,12 +392,12 @@ public class ModelGenerator : IIncrementalGenerator
                 string clrType;
                 string? readMethod = null;
                 string? writeMethodFormat = null;
-                string scaler = String.Empty;
+                string transform = String.Empty;
                 string descaledValue = "value";
                 if (!String.IsNullOrEmpty(point.ScaleFactor))
                 {
                     string scale = $"ScaleFactors.{point.ScaleFactor.Replace("_SF", String.Empty)}";
-                    scaler = $" * {scale}";
+                    transform = $" * {scale}";
                     descaledValue = $"(value / {scale})";
                 }
                 switch (point.Type)
@@ -474,7 +474,7 @@ public class ModelGenerator : IIncrementalGenerator
                         break;
                     case PointType.String:
                         clrType = "string";
-                        readMethod = "Encoding.UTF8.GetString";
+                        readMethod = "SunSpecNullablePrimitives.ReadString";
                         writeMethodFormat = $"if (value.Length > {point.Size * 2}) throw new ArgumentOutOfRangeException(\"Value for {pointName} is greater than the maximum permitted length ({point.Size * 2} characters).\"); Encoding.UTF8.GetBytes(value, {{0}});";
                         break;
                     case PointType.Pad:
@@ -515,8 +515,16 @@ public class ModelGenerator : IIncrementalGenerator
                 {
                     isNullable = false;
                     writer.WriteLine("\t[Required]");
-                    // revert writer
-                    readMethod = readMethod.Replace("SunSpecNullablePrimitives", "BinaryPrimitives");
+                    if (point.Type == PointType.String)
+                    {
+                        // ensure value not null
+                        transform = " ?? String.Empty";
+                    }
+                    else
+                    {
+                        // revert writer
+                        readMethod = readMethod.Replace("SunSpecNullablePrimitives", "BinaryPrimitives");
+                    }
                     writeMethodFormat = writeMethodFormat.Replace("SunSpecNullablePrimitives", "BinaryPrimitives");
                 }
                 if (!point.IsReadWrite)
@@ -527,7 +535,7 @@ public class ModelGenerator : IIncrementalGenerator
                 {
                     writer.WriteLine($"\t[MaxLength({point.Size * 2})]");
                 }
-                if (!String.IsNullOrEmpty(scaler))
+                if (!String.IsNullOrEmpty(point.ScaleFactor))
                 {
                     // assume all scaled typed are doubles
                     clrType = "double";
@@ -544,7 +552,7 @@ public class ModelGenerator : IIncrementalGenerator
                 }
                 writer.WriteLine($"\tpublic {clrType} {pointName}");
                 writer.WriteLine("\t{");
-                writer.WriteLine($"\t\tget {{ return {readMethod}(_buffer.Span.Slice({currentOffset * 2})){scaler}; }}");
+                writer.WriteLine($"\t\tget {{ return {readMethod}(_buffer.Span.Slice({currentOffset * 2})){transform}; }}");
                 writer.WriteLine($"\t\tset {{ {String.Format(writeMethodFormat, $"_buffer.Span.Slice({currentOffset * 2})", isNullable ? "?" : String.Empty)}; }}");
                 writer.WriteLine("\t}");
                 if (point.IsReadWrite)

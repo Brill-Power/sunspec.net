@@ -117,11 +117,15 @@ public static class SunSpecNullablePrimitives
 
     public static string? ReadString(ReadOnlySpan<byte> source)
     {
-        if (source[0] == 0)
+        int end;
+        for (end = 0; end < source.Length; end++)
         {
-            return null;
+            if (source[end] == '\0')
+            {
+                break;
+            }
         }
-        return Encoding.UTF8.GetString(source);
+        return Encoding.UTF8.GetString(source.Slice(0, end));
     }
 
     public static void WriteString(Span<byte> destination, string? value)
